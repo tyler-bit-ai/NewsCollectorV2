@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node:*)",
+      "Bash(npm --version:*)",
+      "WebSearch",
+      "Bash(npx -y @anaisbetts/mcp-installer add:*)",
+      "Bash(claude mcp:*)",
+      "Bash(claude:*)",
+      "Bash(dir C:UsersASUS.claude)",
+      "Bash(dir \"C:\\\\Users\\\\ASUS\\\\.claude\")",
+      "Bash(npx:*)",
+      "Bash(timeout:*)",
+      "Bash(cmd:*)",
+      "Bash(powershell:*)",
+      "Bash(findstr:*)",
+      "Bash(dir \"%USERPROFILE%\\\\.claude\")",
+      "Bash(dir C:Users)",
+      "Bash(dir:*)",
+      "Bash(pipx:*)",
+      "Bash(pip install:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(where:*)",
+      "Bash(python:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
