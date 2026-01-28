@@ -39,8 +39,18 @@ class InsightGenerator(BaseAnalyzer):
         sections = []
         for category, summaries in summary_data.items():
             sections.append(f"## {category}")
+            # summaries가 리스트인지 확인
+            if not isinstance(summaries, list):
+                logger.warning(f"Summaries for {category} is not a list: {type(summaries)}")
+                continue
             for item in summaries:
-                sections.append(f"- {item.get('title', '')}: {item.get('summary', '')}")
+                # item이 딕셔너리인지 확인
+                if isinstance(item, dict):
+                    title = item.get('title', '')
+                    summary = item.get('summary', '')
+                    sections.append(f"- {title}: {summary}")
+                else:
+                    logger.warning(f"Invalid item type in {category}: {type(item)}")
         return "\n".join(sections)
 
     def _generate_insights(self, full_text: str) -> Dict:

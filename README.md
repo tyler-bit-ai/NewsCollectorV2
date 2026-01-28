@@ -91,18 +91,25 @@ DEBUG_MODE=true
 NewsCollector_v2.0/
 ├── config/                 # 설정 파일
 │   ├── settings.py         # 환경 변수 로드
-│   └── categories.yaml     # 카테고리/키워드 설정
+│   ├── categories.yaml     # 카테고리/키워드 설정
+│   └── email_recipients.json  # 이메일 수신자 설정
 ├── collectors/             # 데이터 수집 계층
 ├── filters/                # 필터링 계층
 ├── analyzers/              # AI 분석 계층
 ├── notifiers/              # 발송 계층
 ├── utils/                  # 유틸리티
+├── web/                    # 웹 대시보드
+│   ├── app.py             # Flask 애플리케이션
+│   ├── routes.py          # API 라우트
+│   ├── templates/         # HTML 템플릿
+│   └── static/            # CSS, JS
 ├── output/                 # 출력 파일
 │   ├── logs/              # 로그 파일
 │   ├── web/               # 웹 페이지
 │   └── backups/           # 이메일 백업
 ├── main.py                 # 메인 실행 파일
 ├── run.py                  # 간편 실행 스크립트
+├── start_web.py           # 웹 대시보드 시작 스크립트
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -143,11 +150,50 @@ output/logs/
 └── ...
 ```
 
-## 🌐 웹 인터페이스
+## 🌐 웹 대시보드
 
-생성된 웹 리포트는 `output/web/daily_report.html`에서 확인할 수 있습니다.
+### 웹 대시보드 시작
 
-브라우저에서 파일을 열어 확인하세요.
+웹 기반 대시보드를 사용하여 뉴스 수집 및 분석을 제어할 수 있습니다.
+
+```bash
+python start_web.py
+```
+
+서버가 시작되면 브라우저에서 [http://localhost:5000](http://localhost:5000)에 접속하세요.
+
+### 웹 대시보드 기능
+
+- **🔍 분석 제어**: 버튼 클릭으로 뉴스 수집 및 분석 시작
+- **📧 수신자 관리**: 이메일 수신자 추가/삭제
+- **✉️ 이메일 발송**: 분석 결과를 모든 수신자에게 발송
+- **📋 활동 로그**: 최근 분석 및 발송 기록 확인
+
+### 기본 수신자
+
+다음 SK 직원들이 기본 수신자로 등록되어 있습니다:
+
+- sib1979@sk.com
+- minchaekim@sk.com
+- hyunju11.kim@sk.com
+- jieun.baek@sk.com
+- yjwon@sk.com
+- letigon@sk.com
+- lsm0787@sk.com
+- maclogic@sk.com
+- jungjaehoon@sk.com
+- hw.cho@sk.com
+- chlskdud0623@sk.com
+- youngmin.choi@sk.com
+- jinyeol.han@sk.com
+- jeongwoo.hwang@sk.com
+- funda@sk.com
+
+### 웹 리포트 확인
+
+생성된 웹 리포트는 `output/web/` 디렉토리에서 확인할 수 있습니다.
+
+대시보드에서 "결과 보기" 버튼을 클릭하면 최신 분석 결과를 바로 확인할 수 있습니다.
 
 ## ⚠️ 에러 핸들링
 

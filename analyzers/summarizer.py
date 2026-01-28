@@ -75,7 +75,20 @@ class Summarizer(BaseAnalyzer):
                 {"role": "system", "content": "당신은 뉴스 요약 전문가입니다."},
                 {"role": "user", "content": prompt}
             ])
-            return response.get('summaries', [])
+
+            # 응답이 딕셔너리인지 확인
+            if not isinstance(response, dict):
+                logger.error(f"Invalid response type for {category}: {type(response)}")
+                return []
+
+            summaries = response.get('summaries', [])
+
+            # summaries가 리스트인지 확인
+            if not isinstance(summaries, list):
+                logger.error(f"Summaries is not a list for {category}: {type(summaries)}")
+                return []
+
+            return summaries
 
         except Exception as e:
             logger.error(f"Summary failed for {category}: {e}")

@@ -241,8 +241,59 @@ def send_report(analyzed_data: Dict, settings):
     logger.info("Report generation completed")
 
 
+class NewsCollector:
+    """뉴스 수집기 클래스 - 웹 인터페이스를 위한 통합 인터페이스"""
+
+    def __init__(self):
+        """뉴스 수집기 초기화"""
+        self.settings = load_settings()
+        self.logger = setup_logger(debug_mode=self.settings.debug_mode)
+
+    def collect_all_categories(self):
+        """모든 카테고리에서 뉴스 수집"""
+        self.logger.info("=== Starting News Collection ===")
+        collected_data = collect_articles(self.settings)
+        return collected_data
+
+    def analyze_news(self, collected_data):
+        """수집된 뉴스 분석"""
+        self.logger.info("=== Starting AI Analysis ===")
+        analyzed_data = analyze_articles(collected_data, self.settings)
+        return analyzed_data
+
+    def save_results(self, analyzed_data):
+        """분석 결과 저장 (웹 페이지 생성)"""
+        self.logger.info("=== Saving Results ===")
+        # 웹 페이지만 생성 (이메일 발송 제외)
+        from notifiers.web_generator import WebGenerator
+        web_generator = WebGenerator()
+        web_generator.generate(analyzed_data)
+        self.logger.info("Results saved successfully")
+        return True
+
+    def run_full_pipeline(self):
+        """전체 파이프라인 실행 (수집 -> 분석 -> 저장)"""
+        collected_data = self.collect_all_categories()
+
+        if not collected_data:
+            self.logger.error("[ERROR] No articles collected")
+            return None
+
+        analyzed_data = self.analyze_news(collected_data)
+        self.save_results(analyzed_data)
+
+        return analyzed_data
+
+
 def main():
     """메인 실행 함수"""
+    # 윈도우 환경에서 한글 출력을 위한 인코딩 설정
+    import sys
+    import io
+    if sys.platform == 'win32':
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
     # 먼저 기본 로거 초기화 (설정 로드 전)
     import logging
     logging.basicConfig(

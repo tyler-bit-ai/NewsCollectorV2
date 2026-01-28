@@ -36,7 +36,7 @@ class BaseAnalyzer(ABC):
             messages: 메시지 리스트
 
         Returns:
-            AI 응답 (JSON)
+            AI 응답 (JSON 딕셔너리)
 
         Raises:
             Exception: 재시도 실패 시
@@ -51,7 +51,26 @@ class BaseAnalyzer(ABC):
                     messages=messages,
                     response_format={"type": "json_object"}
                 )
-                return json.loads(response.choices[0].message.content)
+
+                content = response.choices[0].message.content
+
+                # JSON 파싱 시도
+                parsed = json.loads(content)
+
+                # 파싱된 결과가 딕셔너리인지 확인
+                if not isinstance(parsed, dict):
+                    logger.error(f"AI response is not a dict: {type(parsed)}")
+                    raise ValueError(f"Expected dict, got {type(parsed)}")
+
+                return parsed
+
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON decode error on attempt {attempt + 1}: {e}")
+                logger.error(f"Response content: {response.choices[0].message.content if response else 'No response'}")
+                if attempt < self.max_retries - 1:
+                    time.sleep(2 ** attempt)
+                else:
+                    raise ValueError(f"Failed to parse AI response as JSON after {self.max_retries} attempts")
 
             except Exception as e:
                 logger.warning(f"AI call attempt {attempt + 1} failed: {e}")

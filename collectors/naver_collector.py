@@ -7,6 +7,7 @@ from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
 from typing import List, Dict
 import logging
+import time
 
 from .base import BaseCollector
 from utils.exceptions import APIError, RateLimitError
@@ -22,6 +23,8 @@ class NaverCollector(BaseCollector):
         self.client_id = client_id
         self.client_secret = client_secret
         self.base_url = "https://openapi.naver.com/v1/search"
+        self.request_delay = 0.3  # API 요청 간 딜레이 (초)
+        self.last_request_time = 0
 
     def collect(self, query: str, limit: int = 5) -> List[Dict]:
         """
@@ -61,9 +64,14 @@ class NaverCollector(BaseCollector):
             기사 리스트
 
         Raises:
-            RateLimitError: API rate limit 초과
             APIError: API 호출 실패
         """
+        # API 요청 간 딜레이 적용 (rate limit 방지)
+        current_time = time.time()
+        time_since_last_request = current_time - self.last_request_time
+        if time_since_last_request < self.request_delay:
+            time.sleep(self.request_delay - time_since_last_request)
+
         headers = {
             "X-Naver-Client-Id": self.client_id,
             "X-Naver-Client-Secret": self.client_secret
@@ -76,6 +84,7 @@ class NaverCollector(BaseCollector):
         }
 
         try:
+            self.last_request_time = time.time()
             response = requests.get(
                 f"{self.base_url}/{endpoint}.json",
                 headers=headers,
@@ -84,10 +93,12 @@ class NaverCollector(BaseCollector):
             )
 
             if response.status_code == 429:
-                raise RateLimitError("Naver API rate limit exceeded")
+                logger.warning(f"Naver API rate limit exceeded for query: {query}")
+                return []
 
             if response.status_code != 200:
-                raise APIError(f"Naver API failed: {response.status_code}")
+                logger.error(f"Naver API failed: {response.status_code}")
+                return []
 
             data = response.json()
             return self._parse_items(data.get('items', []), endpoint)
@@ -95,9 +106,12 @@ class NaverCollector(BaseCollector):
         except requests.exceptions.Timeout:
             logger.error(f"Naver API timeout: {query}")
             return []
+        except RateLimitError:
+            logger.warning(f"Naver API rate limit exceeded for query: {query}")
+            return []
         except Exception as e:
             logger.error(f"Naver API exception: {e}")
-            raise
+            return []
 
     def _parse_items(self, items: List[Dict], endpoint: str) -> List[Dict]:
         """API 응답 파싱"""
@@ -109,6 +123,9 @@ class NaverCollector(BaseCollector):
                 pub_date = parsedate_to_datetime(item.get('pubDate'))
             else:  # blog, cafe
                 raw_date = item.get('postdate')
+                if not raw_date:
+                    logger.warning(f"Missing postdate for item: {item.get('link', 'unknown')}")
+                    continue
                 pub_date = datetime.strptime(raw_date, "%Y%m%d")
                 pub_date = pub_date.replace(tzinfo=timezone.utc)
 
