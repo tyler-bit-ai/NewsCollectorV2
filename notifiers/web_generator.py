@@ -170,6 +170,10 @@ class WebGenerator:
 
             articles_html = ""
             for article in articles:
+                # 타입 검증 추가
+                if not isinstance(article, dict):
+                    continue
+
                 articles_html += f"""
                 <div class="article">
                     <div class="source">{article.get('source', '')}</div>

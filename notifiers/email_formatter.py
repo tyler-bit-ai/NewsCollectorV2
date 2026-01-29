@@ -87,6 +87,10 @@ class EmailFormatter:
 
         rendered = []
         for article in articles:
+            # 타입 검증 추가
+            if not isinstance(article, dict):
+                continue
+
             rendered.append(f"""
             <div class="article">
                 <div class="source">{article.get('source', '')}</div>
@@ -96,7 +100,7 @@ class EmailFormatter:
             </div>
             """)
 
-        return "\n".join(rendered)
+        return "\n".join(rendered) if rendered else "<p>데이터가 없습니다.</p>"
 
     def _get_default_template(self) -> str:
         """기본 HTML 템플릿"""

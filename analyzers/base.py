@@ -60,6 +60,7 @@ class BaseAnalyzer(ABC):
                 # 파싱된 결과가 딕셔너리인지 확인
                 if not isinstance(parsed, dict):
                     logger.error(f"AI response is not a dict: {type(parsed)}")
+                    logger.error(f"Response content: {content[:500]}")  # 처음 500자만 로깅
                     raise ValueError(f"Expected dict, got {type(parsed)}")
 
                 return parsed

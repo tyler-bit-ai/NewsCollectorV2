@@ -9,6 +9,11 @@ from pathlib import Path
 import sys
 import logging
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -330,7 +335,12 @@ def remove_recipient(email):
 def send_email():
     """Send email to all recipients"""
     try:
-        data = request.get_json() or {}
+        # Safely parse JSON request
+        try:
+            data = request.get_json(force=True, silent=True) or {}
+        except Exception:
+            data = {}
+
         recipients = data.get('recipients')
 
         # Load recipients if not provided
@@ -342,6 +352,16 @@ def send_email():
             return jsonify({
                 'success': False,
                 'message': '수신자가 없습니다'
+            }), 400
+
+        # Get email credentials from environment
+        gmail_user = os.getenv('GMAIL_USER')
+        gmail_app_password = os.getenv('GMAIL_APP_PASSWORD')
+
+        if not gmail_user or not gmail_app_password:
+            return jsonify({
+                'success': False,
+                'message': '이메일 설정이 누락되었습니다. GMAIL_USER와 GMAIL_APP_PASSWORD 환경 변수를 확인해주세요.'
             }), 400
 
         # Import email sender
@@ -361,40 +381,22 @@ def send_email():
         # Get latest HTML file
         latest_html = max(html_files, key=lambda f: f.stat().st_mtime)
 
-        # Format and send email
-        formatter = EmailFormatter()
-        sender = SMTPSender()
-
+        # Read HTML content
         with open(latest_html, 'r', encoding='utf-8') as f:
             html_content = f.read()
 
-        subject = f"📰 뉴스 수집기 분석 결과 - {datetime.now().strftime('%Y-%m-%d')}"
+        # Create sender with credentials
+        sender = SMTPSender(user=gmail_user, password=gmail_app_password)
 
-        success_count = 0
-        failed_count = 0
+        # Send email to all recipients
+        sender.send(html_content, recipients)
 
-        for recipient in recipients:
-            try:
-                result = sender.send_email(
-                    to_email=recipient,
-                    subject=subject,
-                    html_content=html_content
-                )
-                if result:
-                    success_count += 1
-                else:
-                    failed_count += 1
-            except Exception as e:
-                logger.error(f"Error sending to {recipient}: {e}")
-                failed_count += 1
-
-        logger.info(f"Email sent: {success_count} success, {failed_count} failed")
+        logger.info(f"Email sent successfully to {len(recipients)} recipients")
 
         return jsonify({
             'success': True,
-            'message': f'이메일 발송 완료: {success_count}명 성공, {failed_count}명 실패',
-            'sent_count': success_count,
-            'failed_count': failed_count
+            'message': f'이메일 발송 완료: {len(recipients)}명 성공',
+            'sent_count': len(recipients)
         }), 200
 
     except Exception as e:

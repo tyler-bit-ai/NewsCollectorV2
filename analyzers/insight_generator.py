@@ -28,6 +28,15 @@ class InsightGenerator(BaseAnalyzer):
         # AI 인사이트 호출
         insights = self._generate_insights(full_text)
 
+        # 타입 검증 추가
+        if not isinstance(insights, dict):
+            logger.error(f"Insights is not a dict: {type(insights)} - Value: {insights}")
+            return {
+                'strategic_insight': '인사이트 생성 실패 (잘못된 응답 형식)',
+                'key_findings': [],
+                'recommendations': []
+            }
+
         return {
             'strategic_insight': insights.get('strategic_insight', ''),
             'key_findings': insights.get('key_findings', []),
