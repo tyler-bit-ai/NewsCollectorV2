@@ -130,16 +130,9 @@ def run_analysis_task(task_id):
             analysis_tasks[task_id]['progress'] = 100
             analysis_tasks[task_id]['end_time'] = datetime.now().isoformat()
             analysis_tasks[task_id]['result'] = {
-                'total': len(analyzed_news),
-                'by_category': {}
+                'total': 'Analysis completed',
+                'message': '분석이 완료되었습니다'
             }
-
-            # Count by category
-            for news in analyzed_news:
-                category = news.get('category', 'unknown')
-                if category not in analysis_tasks[task_id]['result']['by_category']:
-                    analysis_tasks[task_id]['result']['by_category'][category] = 0
-                analysis_tasks[task_id]['result']['by_category'][category] += 1
 
         logger.info(f"Task {task_id}: Completed successfully")
 
@@ -370,7 +363,7 @@ def send_email():
 
         # Get latest analyzed news
         output_dir = Path(__file__).parent.parent / 'output'
-        html_files = list(output_dir.glob('*.html'))
+        html_files = list(output_dir.glob('**/*.html'))  # 하위 폴더 포함 모든 HTML 파일 검색
 
         if not html_files:
             return jsonify({
