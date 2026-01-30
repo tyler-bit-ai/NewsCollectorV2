@@ -1,9 +1,10 @@
 """
 Flask Web Application for News Collector Dashboard
 """
-from flask import Flask, render_template
+from flask import Flask, render_template, send_from_directory
 from flask_cors import CORS
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,17 @@ def create_app():
     def health():
         """Health check endpoint"""
         return {'status': 'healthy'}, 200
+
+    # Serve output files (HTML reports)
+    @app.route('/output/<path:filepath>')
+    def serve_output(filepath):
+        """Serve files from the output directory"""
+        try:
+            output_dir = Path(__file__).parent.parent / 'output'
+            return send_from_directory(output_dir, filepath)
+        except Exception as e:
+            logger.error(f"Error serving file: {e}")
+            return {'error': 'File not found'}, 404
 
     # Error handlers
     @app.errorhandler(404)

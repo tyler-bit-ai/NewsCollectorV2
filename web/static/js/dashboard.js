@@ -380,9 +380,22 @@ async function sendEmail() {
 /**
  * View analysis results
  */
-function viewResults() {
-    // Find latest HTML file in output directory
-    window.open('/output/', '_blank');
+async function viewResults() {
+    try {
+        // Fetch the latest report information
+        const response = await fetch('/api/latest-report');
+        const data = await response.json();
+
+        if (data.success) {
+            // Open the latest report file
+            window.open(data.url, '_blank');
+        } else {
+            showToast('리포트 없음', data.message || '생성된 리포트가 없습니다', 'warning');
+        }
+    } catch (error) {
+        console.error('Error viewing results:', error);
+        showToast('오류', '리포트를 불러올 수 없습니다', 'error');
+    }
 }
 
 /**

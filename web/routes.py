@@ -398,3 +398,37 @@ def send_email():
             'success': False,
             'message': f'이메일 발송 실패: {str(e)}'
         }), 500
+
+
+@api_bp.route('/latest-report', methods=['GET'])
+def get_latest_report():
+    """Get the latest HTML report file path"""
+    try:
+        output_dir = Path(__file__).parent.parent / 'output'
+        html_files = list(output_dir.glob('**/*.html'))
+
+        if not html_files:
+            return jsonify({
+                'success': False,
+                'message': '생성된 리포트가 없습니다'
+            }), 404
+
+        # Get latest HTML file by modification time
+        latest_html = max(html_files, key=lambda f: f.stat().st_mtime)
+
+        # Get relative path from output directory
+        relative_path = latest_html.relative_to(output_dir)
+
+        return jsonify({
+            'success': True,
+            'filename': latest_html.name,
+            'relative_path': str(relative_path),
+            'url': f'/output/{relative_path}'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting latest report: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
