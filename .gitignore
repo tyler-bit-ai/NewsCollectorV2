@@ -46,3 +46,4 @@ Thumbs.db
 # Project Specific
 claudedocs/
 *.bak
+nul
