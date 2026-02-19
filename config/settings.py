@@ -24,8 +24,8 @@ class APISettings:
     # OpenAI
     openai_api_key: str
     openai_base_url: str
-    model_basic: str = "gpt-4o-mini"
-    model_advanced: str = "gpt-5"
+    model_basic: str = "gpt-4o-mini-2024-07-18"
+    model_advanced: str = "gpt-4o-mini-2024-07-18"
 
 
 @dataclass
@@ -87,8 +87,8 @@ def load_settings() -> Settings:
             search_engine_id=required_vars['SEARCH_ENGINE_ID'],
             openai_api_key=required_vars['OPENAI_API_KEY'],
             openai_base_url=required_vars['OPENAI_BASE_URL'],
-            model_basic=os.getenv('OPENAI_MODEL_BASIC', 'gpt-4o-mini'),
-            model_advanced=os.getenv('OPENAI_MODEL_ADVANCED', 'gpt-5')
+            model_basic=os.getenv('OPENAI_MODEL_BASIC', 'gpt-4o-mini-2024-07-18'),
+            model_advanced=os.getenv('OPENAI_MODEL_ADVANCED', 'gpt-4o-mini-2024-07-18')
         ),
         email=EmailSettings(
             gmail_user=required_vars['GMAIL_USER'],

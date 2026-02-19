@@ -173,7 +173,7 @@ def analyze_articles(collected_data: Dict, settings) -> Dict:
     logger.info("\n=== Starting AI Analysis ===")
 
     # STEP 1: 기사 요약 (GPT-4o-mini)
-    logger.info("STEP 1: Summarizing articles with GPT-4o-mini...")
+    logger.info("STEP 1: Summarizing articles with gpt-4o-mini-2024-07-18...")
     summarizer = Summarizer(
         api_key=settings.api.openai_api_key,
         base_url=settings.api.openai_base_url,
@@ -183,7 +183,7 @@ def analyze_articles(collected_data: Dict, settings) -> Dict:
     summary_data = summarizer.analyze(collected_data)
 
     # STEP 2: 전략 인사이트 (GPT-5)
-    logger.info("STEP 2: Generating insights with GPT-5...")
+    logger.info("STEP 2: Generating insights with gpt-4o-mini-2024-07-18...")
     insight_generator = InsightGenerator(
         api_key=settings.api.openai_api_key,
         base_url=settings.api.openai_base_url,

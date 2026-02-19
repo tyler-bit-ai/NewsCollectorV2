@@ -12,8 +12,8 @@ SKT 로밍팀을 위한 뉴스 수집 및 AI 분석 시스템
 - **스마트 필터링**: 시간 기반(24시간), 키워드 기반 필터링
 - **중복 제거**: 카테고리 내/간 중복 제거
 - **AI 2단계 분석**:
-  - STEP 1: GPT-4o-mini 기사 요약
-  - STEP 2: GPT-5 전략 인사이트 생성
+  - STEP 1: gpt-4o-mini-2024-07-18 기사 요약
+  - STEP 2: gpt-4o-mini-2024-07-18 전략 인사이트 생성
 - **멀티 채널 발송**: 이메일 + 웹 페이지
 
 ## 🚀 설치
@@ -53,7 +53,7 @@ SEARCH_ENGINE_ID=your_search_engine_id
 
 # OpenAI API
 OPENAI_API_KEY=your_openai_api_key
-OPENAI_BASE_URL=https://api.platform.a15t.com/v1
+OPENAI_BASE_URL=https://api.openai.com/v1
 
 # Gmail SMTP
 GMAIL_USER=your_email@gmail.com
@@ -200,7 +200,7 @@ python start_web.py
 ### 3단계 에러 핸들링
 
 1. **재시도**: API 호출 실패 시 최대 3회 재시도
-2. **대체 로직**: GPT-5 실패 시 GPT-4o로 대체
+2. **대체 로직**: 동일 모델 재시도 (gpt-4o-mini-2024-07-18)
 3. **에러 알림**: 로그 파일에 상세 기록
 
 ### 이메일 발송 실패 시
