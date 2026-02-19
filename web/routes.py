@@ -116,6 +116,7 @@ def run_analysis_task(task_id):
         # Analyze news
         logger.info(f"Task {task_id}: Analyzing {len(all_news)} news items")
         analyzed_news = collector.analyze_news(all_news)
+        analyzed_news['external_alerts'] = collector.collect_external_alerts()
 
         with task_lock:
             analysis_tasks[task_id]['progress'] = 80

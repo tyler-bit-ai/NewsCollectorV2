@@ -5,6 +5,7 @@ import os
 from typing import Dict
 import logging
 from datetime import datetime
+import html as html_lib
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +115,8 @@ class WebGenerator:
                 <h1>SKT 로밍팀 일일 뉴스 리포트</h1>
                 <p class="date"><strong>{datetime.now().strftime('%Y년 %m월 %d일')}</strong></p>
 
+                {self._render_external_alerts_section(data.get('external_alerts', []))}
+
                 <div class="section">
                     <h2>📊 전략 인사이트</h2>
                     <p>{data.get('strategic_insight', '데이터가 없습니다.')}</p>
@@ -151,6 +154,42 @@ class WebGenerator:
         if not recommendations:
             return "<li>없음</li>"
         return "\n".join(f"<li>{r}</li>" for r in recommendations)
+
+    def _render_external_alerts_section(self, alerts: list) -> str:
+        """0404 당일 키워드 공지 섹션 렌더링"""
+        if not alerts:
+            return """
+            <div class="section">
+                <h2>0404 당일 키워드 공지</h2>
+                <p>당일 매칭 공지 없음</p>
+            </div>
+            """
+
+        rendered = []
+        for alert in alerts:
+            if not isinstance(alert, dict):
+                continue
+
+            title = html_lib.escape(alert.get('title', ''))
+            content = html_lib.escape(alert.get('content_one_line', ''))
+            link = html_lib.escape(alert.get('link', ''))
+            board_name = html_lib.escape(alert.get('board_name', ''))
+
+            rendered.append(f"""
+            <div class="article">
+                <div class="source">{board_name}</div>
+                <div class="title">{title}</div>
+                <div class="summary">{content}</div>
+                <a href="{link}" class="link" target="_blank">원문 보기</a>
+            </div>
+            """)
+
+        return f"""
+        <div class="section">
+            <h2>0404 당일 키워드 공지</h2>
+            {''.join(rendered) if rendered else '<p>당일 매칭 공지 없음</p>'}
+        </div>
+        """
 
     def _generate_category_sections(self, data: Dict) -> str:
         """카테고리 섹션 생성"""

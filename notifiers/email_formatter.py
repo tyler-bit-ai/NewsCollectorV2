@@ -3,6 +3,7 @@ HTML 이메일 생성
 """
 from typing import Dict
 from datetime import datetime
+import html as html_lib
 import os
 
 class EmailFormatter:
@@ -32,6 +33,7 @@ class EmailFormatter:
 
         # 데이터 치환
         html = template.replace("{{DATE}}", datetime.now().strftime('%Y년 %m월 %d일'))
+        html = html.replace("{{EXTERNAL_ALERTS_SECTION}}", self._format_external_alerts_section(data.get('external_alerts', [])))
         html = html.replace("{{STRATEGIC_INSIGHT}}", data.get('strategic_insight', ''))
         html = html.replace("{{KEY_FINDINGS}}", self._format_findings(data.get('key_findings', [])))
         html = html.replace("{{RECOMMENDATIONS}}", self._format_recommendations(data.get('recommendations', [])))
@@ -53,6 +55,43 @@ class EmailFormatter:
         if not recommendations:
             return "<li>없음</li>"
         return "\n".join(f"<li>{r}</li>" for r in recommendations)
+
+    def _format_external_alerts_section(self, alerts: list) -> str:
+        """0404 당일 키워드 공지 섹션 렌더링"""
+        if not alerts:
+            return """
+            <div class="section">
+                <h2>0404 당일 키워드 공지</h2>
+                <p>당일 매칭 공지 없음</p>
+            </div>
+            """
+
+        rendered = []
+        for alert in alerts:
+            if not isinstance(alert, dict):
+                continue
+
+            title = html_lib.escape(alert.get('title', ''))
+            content = html_lib.escape(alert.get('content_one_line', ''))
+            link = html_lib.escape(alert.get('link', ''))
+            board_name = html_lib.escape(alert.get('board_name', ''))
+
+            rendered.append(f"""
+            <div class="article">
+                <div class="source">{board_name}</div>
+                <div class="title">{title}</div>
+                <div class="summary">{content}</div>
+                <a href="{link}" class="link">원문 보기</a>
+            </div>
+            """)
+
+        body = "\n".join(rendered) if rendered else "<p>당일 매칭 공지 없음</p>"
+        return f"""
+        <div class="section">
+            <h2>0404 당일 키워드 공지</h2>
+            {body}
+        </div>
+        """
 
     def _generate_category_sections(self, data: Dict) -> str:
         """카테고리 섹션 생성"""
@@ -124,6 +163,8 @@ class EmailFormatter:
         <body>
             <h1>SKT 로밍팀 일일 뉴스 리포트</h1>
             <p><strong>{{DATE}}</strong></p>
+
+            {{EXTERNAL_ALERTS_SECTION}}
 
             <div class="section">
                 <h2>📊 전략 인사이트</h2>

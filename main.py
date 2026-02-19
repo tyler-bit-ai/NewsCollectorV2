@@ -12,6 +12,7 @@ from utils.exceptions import NewsCollectorError
 # 수집 계층
 from collectors.naver_collector import NaverCollector
 from collectors.google_collector import GoogleCollector
+from collectors.mofa_0404_collector import Mofa0404Collector
 
 # 필터링 계층
 from filters.time_filter import TimeFilter
@@ -158,6 +159,21 @@ def collect_articles(settings) -> Dict:
     return collected_data
 
 
+def collect_external_alerts(settings) -> List[Dict]:
+    """0404 게시판 당일 키워드 매칭 공지를 수집한다."""
+    logger = logging.getLogger("news_collector")
+    logger.info("\n=== Collecting 0404 External Alerts ===")
+
+    try:
+        collector = Mofa0404Collector(debug_mode=settings.debug_mode)
+        alerts = collector.collect_today_keyword_posts()
+        logger.info(f"External alerts collected: {len(alerts)}")
+        return alerts
+    except Exception as e:
+        logger.error(f"External alert collection failed: {e}")
+        return []
+
+
 def analyze_articles(collected_data: Dict, settings) -> Dict:
     """
     AI 분석 메인 함수
@@ -255,6 +271,10 @@ class NewsCollector:
         collected_data = collect_articles(self.settings)
         return collected_data
 
+    def collect_external_alerts(self):
+        self.logger.info("=== Collecting 0404 External Alerts ===")
+        return collect_external_alerts(self.settings)
+
     def analyze_news(self, collected_data):
         """수집된 뉴스 분석"""
         self.logger.info("=== Starting AI Analysis ===")
@@ -280,6 +300,7 @@ class NewsCollector:
             return None
 
         analyzed_data = self.analyze_news(collected_data)
+        analyzed_data['external_alerts'] = self.collect_external_alerts()
         self.save_results(analyzed_data)
 
         return analyzed_data
@@ -320,6 +341,7 @@ def main():
 
         # 2. AI 분석
         analyzed_data = analyze_articles(collected_data, settings)
+        analyzed_data['external_alerts'] = collect_external_alerts(settings)
 
         # 3. 리포트 발송
         send_report(analyzed_data, settings)
