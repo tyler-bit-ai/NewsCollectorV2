@@ -57,11 +57,11 @@ class EmailFormatter:
         return "\n".join(f"<li>{r}</li>" for r in recommendations)
 
     def _format_external_alerts_section(self, alerts: list) -> str:
-        """0404 당일 키워드 공지 섹션 렌더링"""
+        """해외 안전 공지 섹션 렌더링"""
         if not alerts:
             return """
             <div class="section">
-                <h2>0404 당일 키워드 공지</h2>
+                <h2>해외 안전 공지</h2>
                 <p>당일 매칭 공지 없음</p>
             </div>
             """
@@ -88,7 +88,7 @@ class EmailFormatter:
         body = "\n".join(rendered) if rendered else "<p>당일 매칭 공지 없음</p>"
         return f"""
         <div class="section">
-            <h2>0404 당일 키워드 공지</h2>
+            <h2>해외 안전 공지</h2>
             {body}
         </div>
         """

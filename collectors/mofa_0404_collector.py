@@ -33,15 +33,13 @@ class Mofa0404Collector(BaseCollector):
     KEYWORDS = [
         "로밍",
         "통신",
-        "정전",
+        "인터넷",
+        "데이터",
         "국제전화",
-        "전화",
         "문자",
         "sms",
         "mms",
-        "인터넷",
         "차단",
-        "데이터",
     ]
 
     LIST_ITEM_PATTERN = re.compile(
@@ -127,7 +125,7 @@ class Mofa0404Collector(BaseCollector):
                 title = self._to_one_line(match.group("title"))
 
                 body_text = self._fetch_detail_body(link)
-                combined = f"{title} {body_text}".lower()
+                combined = f"{title} {body_text}"
                 matched = self._matched_keywords(combined)
                 if not matched:
                     continue
@@ -168,7 +166,8 @@ class Mofa0404Collector(BaseCollector):
 
         return self._to_one_line(match.group("body"))
 
-    def _matched_keywords(self, text_lower: str) -> List[str]:
+    def _matched_keywords(self, text: str) -> List[str]:
+        text_lower = text.lower()
         matched = []
         for keyword in self.KEYWORDS:
             if keyword in text_lower:
