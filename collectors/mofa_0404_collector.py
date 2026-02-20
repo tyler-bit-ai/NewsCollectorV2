@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class Mofa0404Collector(BaseCollector):
-    """0404 게시판에서 KST 당일 키워드 매칭 게시글을 수집한다."""
+    """0404 게시판에서 KST 날짜 범위 키워드 매칭 게시글을 수집한다."""
 
     BOARD_URLS = {
         "embsyNtc": "https://0404.go.kr/bbs/embsyNtc/list",
@@ -74,13 +74,19 @@ class Mofa0404Collector(BaseCollector):
     def collect_today_keyword_posts(self) -> List[Dict]:
         """두 게시판에서 KST 당일 키워드 매칭 게시글을 수집한다."""
         today_kst = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d")
+        return self.collect_keyword_posts_by_date_range(today_kst, today_kst)
+
+    def collect_keyword_posts_by_date_range(self, start_date_kst: str, end_date_kst: str) -> List[Dict]:
+        """
+        두 게시판에서 날짜 범위(KST, YYYY-MM-DD, 양끝 포함) 키워드 매칭 게시글을 수집한다.
+        """
         collected: List[Dict] = []
         seen_links = set()
 
         for board_key, list_url in self.BOARD_URLS.items():
             board_name = self.BOARD_NAMES[board_key]
             logger.info(f"[0404] Collecting board: {board_name}")
-            board_items = self._collect_board(board_key, list_url, today_kst)
+            board_items = self._collect_board(board_key, list_url, start_date_kst, end_date_kst)
 
             for item in board_items:
                 link = item["link"]
@@ -92,7 +98,7 @@ class Mofa0404Collector(BaseCollector):
         logger.info(f"[0404] Collected matched posts: {len(collected)}")
         return collected
 
-    def _collect_board(self, board_key: str, list_url: str, today_kst: str) -> List[Dict]:
+    def _collect_board(self, board_key: str, list_url: str, start_date_kst: str, end_date_kst: str) -> List[Dict]:
         results: List[Dict] = []
         board_name = self.BOARD_NAMES[board_key]
 
@@ -110,16 +116,16 @@ class Mofa0404Collector(BaseCollector):
             if not list_items:
                 break
 
-            today_items = []
+            target_items = []
             older_exists = False
             for match in list_items:
                 date_text = match.group("date").strip()
-                if date_text == today_kst:
-                    today_items.append(match)
-                elif date_text < today_kst:
+                if start_date_kst <= date_text <= end_date_kst:
+                    target_items.append(match)
+                elif date_text < start_date_kst:
                     older_exists = True
 
-            for match in today_items:
+            for match in target_items:
                 relative_link = html.unescape(match.group("link").strip())
                 link = f"https://0404.go.kr{relative_link}"
                 title = self._to_one_line(match.group("title"))
@@ -147,7 +153,7 @@ class Mofa0404Collector(BaseCollector):
                 self.collected_count += 1
 
             # 정렬이 최신순이라 당일 글이 없고 과거 글만 보이면 종료
-            if not today_items and older_exists:
+            if not target_items and older_exists:
                 break
 
         return results

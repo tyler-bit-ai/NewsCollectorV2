@@ -9,6 +9,7 @@ from config.settings import load_settings
 from config.recipient_store import get_group_recipients
 from utils.logger import setup_logger
 from utils.exceptions import NewsCollectorError
+from utils.time_windows import get_collection_window_kst
 
 # 수집 계층
 from collectors.naver_collector import NaverCollector
@@ -74,7 +75,16 @@ def collect_articles(settings) -> Dict:
     config = load_categories()
     filters_config = config['filters']
 
-    time_filter = TimeFilter(window_hours=settings.time_window_hours)
+    window = get_collection_window_kst(window_hours=settings.time_window_hours)
+    logger.info(
+        f"Collection window ({window.label}): "
+        f"KST {window.start_kst.strftime('%Y-%m-%d %H:%M')} ~ {window.end_kst.strftime('%Y-%m-%d %H:%M')}"
+    )
+    time_filter = TimeFilter(
+        window_hours=settings.time_window_hours,
+        start_time=window.start_utc,
+        end_time=window.end_utc
+    )
     keyword_filter = KeywordFilter(
         blacklist_domains=filters_config['blacklist_domains'],
         excluded_keywords=filters_config['excluded_keywords']
@@ -161,13 +171,20 @@ def collect_articles(settings) -> Dict:
 
 
 def collect_external_alerts(settings) -> List[Dict]:
-    """0404 게시판 당일 키워드 매칭 공지를 수집한다."""
+    """0404 게시판 날짜 범위(KST) 키워드 매칭 공지를 수집한다."""
     logger = logging.getLogger("news_collector")
     logger.info("\n=== Collecting 0404 External Alerts ===")
 
     try:
+        window = get_collection_window_kst(window_hours=settings.time_window_hours)
+        start_date_kst = window.start_kst.strftime("%Y-%m-%d")
+        end_date_kst = window.end_kst.strftime("%Y-%m-%d")
+        logger.info(
+            f"[0404] Date window (KST): {start_date_kst} ~ {end_date_kst} "
+            f"(time boundary {window.start_kst.strftime('%H:%M')}~{window.end_kst.strftime('%H:%M')})"
+        )
         collector = Mofa0404Collector(debug_mode=settings.debug_mode)
-        alerts = collector.collect_today_keyword_posts()
+        alerts = collector.collect_keyword_posts_by_date_range(start_date_kst, end_date_kst)
         logger.info(f"External alerts collected: {len(alerts)}")
         return alerts
     except Exception as e:
