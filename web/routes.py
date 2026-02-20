@@ -4,13 +4,18 @@ API Routes for News Collector Dashboard
 from flask import Blueprint, jsonify, request
 import threading
 import uuid
-import json
 from pathlib import Path
 import sys
 import logging
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+from config.recipient_store import (
+    GROUP_TO_KEY,
+    add_group_recipient,
+    get_group_recipients,
+    remove_group_recipient,
+)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -26,65 +31,17 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 analysis_tasks = {}
 task_lock = threading.Lock()
 
-# Email recipients configuration file
-RECIPIENTS_FILE = Path(__file__).parent.parent / 'config' / 'email_recipients.json'
-
-
-def get_recipients_file():
-    """Get recipients file path"""
-    file_path = Path(__file__).parent.parent / 'config' / 'email_recipients.json'
-    return file_path
-
-
-def load_recipients():
-    """Load email recipients from configuration file"""
-    try:
-        file_path = get_recipients_file()
-        if not file_path.exists():
-            # Create default recipients file
-            default_recipients = {
-                "default_recipients": [
-                    "sib1979@sk.com",
-                    "minchaekim@sk.com",
-                    "hyunju11.kim@sk.com",
-                    "jieun.baek@sk.com",
-                    "yjwon@sk.com",
-                    "letigon@sk.com",
-                    "lsm0787@sk.com",
-                    "maclogic@sk.com",
-                    "jungjaehoon@sk.com",
-                    "hw.cho@sk.com",
-                    "chlskdud0623@sk.com",
-                    "youngmin.choi@sk.com",
-                    "jinyeol.han@sk.com",
-                    "jeongwoo.hwang@sk.com",
-                    "funda@sk.com"
-                ],
-                "custom_recipients": []
-            }
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(default_recipients, f, ensure_ascii=False, indent=2)
-            return default_recipients
-
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Error loading recipients: {e}")
-        return {"default_recipients": [], "custom_recipients": []}
-
-
-def save_recipients(recipients):
-    """Save email recipients to configuration file"""
-    try:
-        file_path = get_recipients_file()
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(recipients, f, ensure_ascii=False, indent=2)
-        return True
-    except Exception as e:
-        logger.error(f"Error saving recipients: {e}")
-        return False
+def _resolve_group():
+    group = request.args.get("group", "report").strip()
+    if group not in GROUP_TO_KEY:
+        return None, (
+            jsonify({
+                'success': False,
+                'message': '유효하지 않은 group 입니다. report 또는 safety_alert를 사용하세요.'
+            }),
+            400
+        )
+    return group, None
 
 
 def run_analysis_task(task_id):
@@ -96,7 +53,7 @@ def run_analysis_task(task_id):
             analysis_tasks[task_id]['progress'] = 0
 
         # Import main collector
-        from main import NewsCollector
+        from main import NewsCollector, send_safety_alert_notification
 
         # Create collector instance
         collector = NewsCollector()
@@ -125,6 +82,11 @@ def run_analysis_task(task_id):
         # Save results
         logger.info(f"Task {task_id}: Saving results")
         collector.save_results(analyzed_news)
+
+        # 해외 안전 공지 자동 메일 발송
+        if analyzed_news.get('external_alerts'):
+            logger.info(f"Task {task_id}: Sending safety alert digest")
+            send_safety_alert_notification(analyzed_news['external_alerts'], collector.settings)
 
         with task_lock:
             analysis_tasks[task_id]['status'] = 'completed'
@@ -219,14 +181,16 @@ def get_analysis_status(task_id):
 def get_recipients():
     """Get all email recipients"""
     try:
-        data = load_recipients()
-        all_recipients = data['default_recipients'] + data['custom_recipients']
+        group, error_response = _resolve_group()
+        if error_response:
+            return error_response
+        recipients = get_group_recipients(group)
 
         return jsonify({
             'success': True,
-            'recipients': all_recipients,
-            'default_count': len(data['default_recipients']),
-            'custom_count': len(data['custom_recipients'])
+            'group': group,
+            'recipients': recipients,
+            'count': len(recipients)
         }), 200
 
     except Exception as e:
@@ -241,47 +205,28 @@ def get_recipients():
 def add_recipient():
     """Add new email recipient"""
     try:
-        data = request.get_json()
+        group, error_response = _resolve_group()
+        if error_response:
+            return error_response
+
+        data = request.get_json(silent=True) or {}
         email = data.get('email', '').strip()
 
-        if not email:
+        success, message, recipients = add_group_recipient(email=email, group=group)
+        if not success:
             return jsonify({
                 'success': False,
-                'message': '이메일 주소를 입력해주세요'
+                'message': message
             }), 400
 
-        # Basic email validation
-        if '@' not in email or '.' not in email.split('@')[-1]:
-            return jsonify({
-                'success': False,
-                'message': '올바른 이메일 형식이 아닙니다'
-            }), 400
-
-        recipients_data = load_recipients()
-        all_recipients = recipients_data['default_recipients'] + recipients_data['custom_recipients']
-
-        # Check if email already exists
-        if email in all_recipients:
-            return jsonify({
-                'success': False,
-                'message': '이미 존재하는 이메일 주소입니다'
-            }), 400
-
-        # Add to custom recipients
-        recipients_data['custom_recipients'].append(email)
-
-        if save_recipients(recipients_data):
-            logger.info(f"Added new recipient: {email}")
-            return jsonify({
-                'success': True,
-                'message': '이메일이 추가되었습니다',
-                'email': email
-            }), 200
-        else:
-            return jsonify({
-                'success': False,
-                'message': '이메일 저장 실패'
-            }), 500
+        logger.info(f"Added recipient ({group}): {email}")
+        return jsonify({
+            'success': True,
+            'message': message,
+            'email': email,
+            'group': group,
+            'count': len(recipients)
+        }), 200
 
     except Exception as e:
         logger.error(f"Error adding recipient: {e}")
@@ -295,27 +240,23 @@ def add_recipient():
 def remove_recipient(email):
     """Remove email recipient"""
     try:
-        recipients_data = load_recipients()
+        group, error_response = _resolve_group()
+        if error_response:
+            return error_response
 
-        # Try to remove from custom recipients
-        if email in recipients_data['custom_recipients']:
-            recipients_data['custom_recipients'].remove(email)
-            if save_recipients(recipients_data):
-                logger.info(f"Removed recipient: {email}")
-                return jsonify({
-                    'success': True,
-                    'message': '이메일이 삭제되었습니다'
-                }), 200
-        else:
+        success, message, recipients = remove_group_recipient(email=email, group=group)
+        if success:
+            logger.info(f"Removed recipient ({group}): {email}")
             return jsonify({
-                'success': False,
-                'message': '기본 수신자는 삭제할 수 없습니다'
-            }), 400
-
+                'success': True,
+                'message': message,
+                'group': group,
+                'count': len(recipients)
+            }), 200
         return jsonify({
             'success': False,
-            'message': '삭제 실패'
-        }), 500
+            'message': message
+        }), 400
 
     except Exception as e:
         logger.error(f"Error removing recipient: {e}")
@@ -339,8 +280,7 @@ def send_email():
 
         # Load recipients if not provided
         if not recipients:
-            recipients_data = load_recipients()
-            recipients = recipients_data['default_recipients'] + recipients_data['custom_recipients']
+            recipients = get_group_recipients("report")
 
         if not recipients:
             return jsonify({

@@ -2,9 +2,10 @@
 환경 변수 및 설정 관리
 """
 import os
-from dotenv import load_dotenv
 from dataclasses import dataclass
 from typing import List
+
+from dotenv import load_dotenv
 
 # .env 파일 로드
 load_dotenv()
@@ -72,12 +73,9 @@ def load_settings() -> Settings:
     if missing:
         raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
 
-    # 수신자 처리
+    # 레거시 호환: EMAIL_RECIPIENTS는 선택값으로만 유지
     recipients_str = os.getenv('EMAIL_RECIPIENTS', '')
     recipients = [r.strip() for r in recipients_str.split(',') if r.strip()]
-
-    if not recipients:
-        raise ValueError("EMAIL_RECIPIENTS is empty")
 
     return Settings(
         api=APISettings(

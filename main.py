@@ -6,6 +6,7 @@ import logging
 from typing import Dict, List
 
 from config.settings import load_settings
+from config.recipient_store import get_group_recipients
 from utils.logger import setup_logger
 from utils.exceptions import NewsCollectorError
 
@@ -242,12 +243,19 @@ def send_report(analyzed_data: Dict, settings):
         password=settings.email.gmail_app_password
     )
 
-    try:
-        smtp_sender.send(html_content, settings.email.recipients)
-        logger.info("Email sent successfully")
-    except Exception as e:
-        logger.error(f"Email send failed: {e}")
-        raise
+    report_recipients = get_group_recipients("report")
+    if not report_recipients:
+        logger.warning("No report recipients configured. Skipping report email.")
+    else:
+        try:
+            smtp_sender.send(html_content, report_recipients)
+            logger.info(f"Report email sent successfully to {len(report_recipients)} recipients")
+        except Exception as e:
+            logger.error(f"Email send failed: {e}")
+            raise
+
+    alerts = analyzed_data.get('external_alerts', [])
+    send_safety_alert_notification(alerts, settings)
 
     # 웹 페이지 생성
     logger.info("Generating web page...")
@@ -255,6 +263,48 @@ def send_report(analyzed_data: Dict, settings):
     web_generator.generate(analyzed_data)
 
     logger.info("Report generation completed")
+
+
+def send_safety_alert_notification(alerts: List[Dict], settings) -> bool:
+    """
+    해외 안전 공지 전용 알림 메일 발송
+
+    Args:
+        alerts: 해외 안전 공지 리스트
+        settings: 설정 객체
+
+    Returns:
+        발송 성공 여부
+    """
+    logger = logging.getLogger("news_collector")
+
+    if not alerts:
+        logger.info("No external alerts. Skipping safety alert email.")
+        return False
+
+    recipients = get_group_recipients("safety_alert")
+    if not recipients:
+        logger.warning("No safety alert recipients configured. Skipping safety alert email.")
+        return False
+
+    email_formatter = EmailFormatter()
+    html_content = email_formatter.format_safety_alert_digest(alerts)
+    smtp_sender = SMTPSender(
+        user=settings.email.gmail_user,
+        password=settings.email.gmail_app_password
+    )
+
+    try:
+        smtp_sender.send(
+            html_content=html_content,
+            recipients=recipients,
+            subject_prefix="[SKT 로밍팀] 해외 안전 공지 알림"
+        )
+        logger.info(f"Safety alert email sent successfully to {len(recipients)} recipients")
+        return True
+    except Exception as e:
+        logger.error(f"Safety alert email send failed: {e}")
+        return False
 
 
 class NewsCollector:

@@ -27,13 +27,19 @@ class SMTPSender:
         self.password = password
 
     @retry(max_attempts=3)
-    def send(self, html_content: str, recipients: List[str]) -> bool:
+    def send(
+        self,
+        html_content: str,
+        recipients: List[str],
+        subject_prefix: str = "[SKT 로밍팀] 일일 뉴스 리포트"
+    ) -> bool:
         """
         이메일 발송
 
         Args:
             html_content: HTML 본문
             recipients: 수신자 리스트
+            subject_prefix: 메일 제목 prefix
 
         Returns:
             성공 시 True
@@ -42,7 +48,7 @@ class SMTPSender:
             NotificationError: 발송 실패
         """
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = f"[SKT 로밍팀] 일일 뉴스 리포트 - {datetime.now().strftime('%Y-%m-%d')}"
+        msg['Subject'] = f"{subject_prefix} - {datetime.now().strftime('%Y-%m-%d')}"
         msg['From'] = self.user
         msg['To'] = ", ".join(recipients)
 

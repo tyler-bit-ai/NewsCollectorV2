@@ -7,9 +7,29 @@ let currentTaskId = null;
 let progressInterval = null;
 let activities = [];
 
+const RECIPIENT_GROUPS = {
+    report: {
+        label: '일반 리포트',
+        inputId: 'report-new-email',
+        addButtonId: 'report-add-recipient',
+        listId: 'report-recipients',
+        countId: 'report-recipient-count',
+        emptyId: 'report-no-recipients',
+    },
+    safety_alert: {
+        label: '해외 안전 공지',
+        inputId: 'safety-new-email',
+        addButtonId: 'safety-add-recipient',
+        listId: 'safety-recipients',
+        countId: 'safety-recipient-count',
+        emptyId: 'safety-no-recipients',
+    }
+};
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    loadRecipients();
+    loadRecipients('report');
+    loadRecipients('safety_alert');
     loadActivities();
     setupEventListeners();
 });
@@ -18,24 +38,25 @@ document.addEventListener('DOMContentLoaded', () => {
  * Setup event listeners
  */
 function setupEventListeners() {
-    // Start analysis button
     document.getElementById('start-analysis').addEventListener('click', startAnalysis);
-
-    // View results button (hidden by default)
     document.getElementById('view-results').addEventListener('click', viewResults);
+    document.getElementById('send-email').addEventListener('click', sendEmail);
 
-    // Add recipient button
-    document.getElementById('add-recipient').addEventListener('click', addRecipient);
+    setupRecipientGroupEvents('report');
+    setupRecipientGroupEvents('safety_alert');
+}
 
-    // Email input enter key
-    document.getElementById('new-email').addEventListener('keypress', (e) => {
+function setupRecipientGroupEvents(group) {
+    const config = RECIPIENT_GROUPS[group];
+    const addButton = document.getElementById(config.addButtonId);
+    const input = document.getElementById(config.inputId);
+
+    addButton.addEventListener('click', () => addRecipient(group));
+    input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
-            addRecipient();
+            addRecipient(group);
         }
     });
-
-    // Send email button
-    document.getElementById('send-email').addEventListener('click', sendEmail);
 }
 
 /**
@@ -48,11 +69,8 @@ async function startAnalysis() {
 
         const response = await fetch('/api/analysis/start', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: { 'Content-Type': 'application/json' }
         });
-
         const data = await response.json();
 
         if (data.success) {
@@ -60,13 +78,8 @@ async function startAnalysis() {
             showToast('분석 시작', data.message, 'info');
             addActivity('🚀', '뉴스 분석 시작', data.message);
 
-            // Show progress container
             document.getElementById('progress-container').style.display = 'block';
-
-            // Update system status
             updateSystemStatus('running');
-
-            // Start monitoring progress
             monitorProgress(data.task_id);
         } else {
             showToast('오류', data.message, 'error');
@@ -94,7 +107,6 @@ function monitorProgress(taskId) {
 
             if (data.success) {
                 updateProgress(data);
-
                 if (data.status === 'completed') {
                     clearInterval(progressInterval);
                     handleAnalysisComplete(data);
@@ -121,11 +133,9 @@ function updateProgress(data) {
     const newsCollected = document.getElementById('news-collected');
     const newsAnalyzed = document.getElementById('news-analyzed');
 
-    // Update progress bar
     progressText.textContent = `${progressPercent}%`;
     progressBar.style.width = `${progressPercent}%`;
 
-    // Update status text
     if (progressPercent < 30) {
         progressStatus.textContent = '뉴스 수집 중...';
     } else if (progressPercent < 60) {
@@ -136,7 +146,6 @@ function updateProgress(data) {
         progressStatus.textContent = '완료!';
     }
 
-    // Update details
     if (data.news_collected > 0 || data.news_analyzed > 0) {
         progressDetails.style.display = 'flex';
         newsCollected.textContent = `수집: ${data.news_collected}건`;
@@ -161,7 +170,6 @@ function handleAnalysisComplete(data) {
     showToast('분석 완료', message, 'success');
     addActivity('✅', '분석 완료', message);
 
-    // Hide progress container after delay
     setTimeout(() => {
         document.getElementById('progress-container').style.display = 'none';
     }, 3000);
@@ -173,7 +181,6 @@ function handleAnalysisComplete(data) {
 function handleAnalysisFailed(error) {
     const button = document.getElementById('start-analysis');
     button.disabled = false;
-
     updateSystemStatus('error');
 
     const message = `분석 실패: ${error || '알 수 없는 오류'}`;
@@ -182,28 +189,29 @@ function handleAnalysisFailed(error) {
 }
 
 /**
- * Load email recipients
+ * Load recipients for a group
  */
-async function loadRecipients() {
+async function loadRecipients(group) {
     try {
-        const response = await fetch('/api/recipients');
+        const response = await fetch(`/api/recipients?group=${encodeURIComponent(group)}`);
         const data = await response.json();
 
         if (data.success) {
-            displayRecipients(data.recipients);
+            displayRecipients(group, data.recipients || []);
         }
     } catch (error) {
-        console.error('Error loading recipients:', error);
+        console.error(`Error loading recipients (${group}):`, error);
     }
 }
 
 /**
- * Display recipients list
+ * Display recipients list for a group
  */
-function displayRecipients(recipients) {
-    const recipientsList = document.getElementById('recipients');
-    const recipientCount = document.getElementById('recipient-count');
-    const noRecipients = document.getElementById('no-recipients');
+function displayRecipients(group, recipients) {
+    const config = RECIPIENT_GROUPS[group];
+    const recipientsList = document.getElementById(config.listId);
+    const recipientCount = document.getElementById(config.countId);
+    const noRecipients = document.getElementById(config.emptyId);
 
     recipientsList.innerHTML = '';
     recipientCount.textContent = recipients.length;
@@ -214,128 +222,104 @@ function displayRecipients(recipients) {
     }
 
     noRecipients.style.display = 'none';
-
-    recipients.forEach(email => {
+    recipients.forEach((email) => {
         const li = document.createElement('li');
         li.className = 'recipient-item';
 
-        const isDefault = isDefaultRecipient(email);
+        const emailSpan = document.createElement('span');
+        emailSpan.className = 'recipient-email';
+        emailSpan.textContent = email;
 
-        li.innerHTML = `
-            <span class="recipient-email">${escapeHtml(email)}</span>
-            <div class="recipient-actions">
-                <span class="recipient-badge ${isDefault ? 'recipient-badge-default' : 'recipient-badge-custom'}">
-                    ${isDefault ? '기본' : '추가'}
-                </span>
-                ${!isDefault ? `
-                    <button class="btn btn-danger btn-sm" onclick="removeRecipient('${escapeHtml(email)}')">
-                        삭제
-                    </button>
-                ` : ''}
-            </div>
-        `;
+        const actions = document.createElement('div');
+        actions.className = 'recipient-actions';
 
+        const badge = document.createElement('span');
+        badge.className = 'recipient-badge recipient-badge-custom';
+        badge.textContent = '저장됨';
+
+        const removeButton = document.createElement('button');
+        removeButton.className = 'btn btn-danger btn-sm';
+        removeButton.textContent = '삭제';
+        removeButton.addEventListener('click', () => removeRecipient(group, email));
+
+        actions.appendChild(badge);
+        actions.appendChild(removeButton);
+        li.appendChild(emailSpan);
+        li.appendChild(actions);
         recipientsList.appendChild(li);
     });
 }
 
 /**
- * Check if email is default recipient
+ * Add new recipient to group
  */
-function isDefaultRecipient(email) {
-    const defaultEmails = [
-        'sib1979@sk.com',
-        'minchaekim@sk.com',
-        'hyunju11.kim@sk.com',
-        'jieun.baek@sk.com',
-        'yjwon@sk.com',
-        'letigon@sk.com',
-        'lsm0787@sk.com',
-        'maclogic@sk.com',
-        'jungjaehoon@sk.com',
-        'hw.cho@sk.com',
-        'chlskdud0623@sk.com',
-        'youngmin.choi@sk.com',
-        'jinyeol.han@sk.com',
-        'jeongwoo.hwang@sk.com',
-        'funda@sk.com'
-    ];
-    return defaultEmails.includes(email);
-}
-
-/**
- * Add new recipient
- */
-async function addRecipient() {
-    const emailInput = document.getElementById('new-email');
-    const email = emailInput.value.trim();
+async function addRecipient(group) {
+    const config = RECIPIENT_GROUPS[group];
+    const emailInput = document.getElementById(config.inputId);
+    const email = emailInput.value.trim().toLowerCase();
 
     if (!email) {
         showToast('입력 오류', '이메일 주소를 입력해주세요', 'warning');
         return;
     }
-
-    // Basic email validation
     if (!isValidEmail(email)) {
         showToast('형식 오류', '올바른 이메일 형식이 아닙니다', 'warning');
         return;
     }
 
     try {
-        const response = await fetch('/api/recipients', {
+        const response = await fetch(`/api/recipients?group=${encodeURIComponent(group)}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ email })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
         });
-
         const data = await response.json();
 
         if (data.success) {
             showToast('성공', data.message, 'success');
-            addActivity('➕', '수신자 추가', `${email} 님이 추가되었습니다`);
+            addActivity('➕', `${config.label} 수신자 추가`, `${email} 추가됨`);
             emailInput.value = '';
-            loadRecipients();
+            loadRecipients(group);
         } else {
             showToast('실패', data.message, 'error');
         }
     } catch (error) {
-        console.error('Error adding recipient:', error);
+        console.error(`Error adding recipient (${group}):`, error);
         showToast('오류', '수신자 추가 실패', 'error');
     }
 }
 
 /**
- * Remove recipient
+ * Remove recipient from group
  */
-async function removeRecipient(email) {
-    if (!confirm(`'${email}' 님을 삭제하시겠습니까?`)) {
+async function removeRecipient(group, email) {
+    const config = RECIPIENT_GROUPS[group];
+    if (!confirm(`'${email}' 님을 ${config.label} 수신자 목록에서 삭제하시겠습니까?`)) {
         return;
     }
 
     try {
-        const response = await fetch(`/api/recipients/${encodeURIComponent(email)}`, {
-            method: 'DELETE'
-        });
-
+        const response = await fetch(
+            `/api/recipients/${encodeURIComponent(email)}?group=${encodeURIComponent(group)}`,
+            { method: 'DELETE' }
+        );
         const data = await response.json();
 
         if (data.success) {
             showToast('성공', data.message, 'success');
-            addActivity('🗑️', '수신자 삭제', `${email} 님이 삭제되었습니다`);
-            loadRecipients();
+            addActivity('🗑️', `${config.label} 수신자 삭제`, `${email} 삭제됨`);
+            loadRecipients(group);
         } else {
             showToast('실패', data.message, 'error');
         }
     } catch (error) {
-        console.error('Error removing recipient:', error);
+        console.error(`Error removing recipient (${group}):`, error);
         showToast('오류', '수신자 삭제 실패', 'error');
     }
 }
 
 /**
- * Send email
+ * Send report email
  */
 async function sendEmail() {
     const emailStatus = document.getElementById('email-status');
@@ -345,12 +329,9 @@ async function sendEmail() {
     try {
         const response = await fetch('/api/email/send', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({})
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
         });
-
         const data = await response.json();
 
         if (data.success) {
@@ -364,11 +345,9 @@ async function sendEmail() {
             showToast('실패', data.message, 'error');
         }
 
-        // Hide status after 5 seconds
         setTimeout(() => {
             emailStatus.className = 'status-message';
         }, 5000);
-
     } catch (error) {
         console.error('Error sending email:', error);
         emailStatus.className = 'status-message error show';
@@ -382,12 +361,10 @@ async function sendEmail() {
  */
 async function viewResults() {
     try {
-        // Fetch the latest report information
         const response = await fetch('/api/latest-report');
         const data = await response.json();
 
         if (data.success) {
-            // Open the latest report file
             window.open(data.url, '_blank');
         } else {
             showToast('리포트 없음', data.message || '생성된 리포트가 없습니다', 'warning');
@@ -427,8 +404,6 @@ function addActivity(icon, title, message) {
     const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 
     activities.unshift({ icon, title, message, time: timeStr });
-
-    // Keep only last 10 activities
     if (activities.length > 10) {
         activities = activities.slice(0, 10);
     }
@@ -510,8 +485,6 @@ function showToast(title, message, type = 'info') {
     `;
 
     toastContainer.appendChild(toast);
-
-    // Auto remove after 3 seconds
     setTimeout(() => {
         toast.style.animation = 'slideIn 0.3s ease reverse';
         setTimeout(() => {

@@ -119,6 +119,70 @@ class EmailFormatter:
 
         return "\n".join(sections)
 
+    def format_safety_alert_digest(self, alerts: list) -> str:
+        """
+        해외 안전 공지 전용 알림 메일 생성
+
+        Args:
+            alerts: 해외 안전 공지 리스트
+
+        Returns:
+            HTML 이메일 본문
+        """
+        date_text = datetime.now().strftime('%Y년 %m월 %d일')
+        alert_cards = self._render_safety_alert_cards(alerts)
+        return f"""
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; background: #f5f5f5; }}
+                .container {{ max-width: 900px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 24px; }}
+                h1 {{ color: #d97706; border-bottom: 3px solid #d97706; padding-bottom: 10px; }}
+                .date {{ color: #666; margin-bottom: 16px; }}
+                .article {{ margin-bottom: 14px; padding: 14px; border-left: 4px solid #d97706; background: #fffbeb; }}
+                .source {{ color: #666; font-size: 0.9em; }}
+                .title {{ font-weight: bold; color: #222; margin: 6px 0; }}
+                .summary {{ color: #444; }}
+                .link {{ color: #b45309; text-decoration: none; }}
+                .link:hover {{ text-decoration: underline; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>해외 안전 공지 알림</h1>
+                <p class="date"><strong>{date_text}</strong></p>
+                <p>당일 해외 안전 공지가 수집되어 별도 공유드립니다.</p>
+                {alert_cards}
+            </div>
+        </body>
+        </html>
+        """
+
+    def _render_safety_alert_cards(self, alerts: list) -> str:
+        if not alerts:
+            return "<p>당일 매칭 공지 없음</p>"
+
+        rendered = []
+        for alert in alerts:
+            if not isinstance(alert, dict):
+                continue
+            title = html_lib.escape(alert.get('title', ''))
+            content = html_lib.escape(alert.get('content_one_line', ''))
+            link = html_lib.escape(alert.get('link', ''))
+            board_name = html_lib.escape(alert.get('board_name', ''))
+            rendered.append(f"""
+            <div class="article">
+                <div class="source">{board_name}</div>
+                <div class="title">{title}</div>
+                <div class="summary">{content}</div>
+                <a href="{link}" class="link">원문 보기</a>
+            </div>
+            """)
+
+        return "\n".join(rendered) if rendered else "<p>당일 매칭 공지 없음</p>"
+
     def _render_articles(self, articles: list) -> str:
         """기사 리스트 렌더링"""
         if not articles:
