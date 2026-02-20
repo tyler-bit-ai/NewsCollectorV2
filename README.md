@@ -4,23 +4,37 @@ SKT 로밍팀을 위한 뉴스 수집 및 AI 분석 시스템
 
 ## 📋 개요
 
-6개 카테고리로 기사를 자동 수집하고, AI가 2단계 분석을 수행한 후 이메일과 웹 페이지로 발송합니다.
+6개 카테고리의 기사/게시글을 자동 수집하고, AI 2단계 분석 후 결과를 웹/이메일로 배포합니다.  
+추가로 외교부 0404(해외안전여행) 게시판의 당일 통신 이슈 공지도 별도 수집합니다.
 
 ## ✨ 주요 기능
 
-- **자동 뉴스 수집**: Naver News, Blog, Cafe 및 Google Search API
-- **스마트 필터링**: 시간 기반(24시간), 키워드 기반 필터링
-- **중복 제거**: 카테고리 내/간 중복 제거
-- **AI 2단계 분석**:
-  - STEP 1: gpt-4o-mini-2024-07-18 기사 요약
-  - STEP 2: gpt-4o-mini-2024-07-18 전략 인사이트 생성
-- **멀티 채널 발송**: 이메일 + 웹 페이지
+- 자동 뉴스 수집
+- Naver News / Blog / Cafe Search API
+- Google Custom Search API
+- 0404.go.kr 공관안전공지/안전공지 당일 키워드 매칭 수집
+- 스마트 필터링
+- 시간 필터 (`TIME_WINDOW_HOURS`, 기본 24시간)
+- 키워드/도메인 필터 (`config/categories.yaml`)
+- 중복 제거
+- 카테고리 내 중복 제거: 제목 정규화 + URL
+- 카테고리 간 중복 제거: URL 기준(현재는 로그/통계 용도로 수행)
+- AI 2단계 분석
+- STEP 1: 기사 요약 (`OPENAI_MODEL_BASIC`, 기본 `gpt-4o-mini-2024-07-18`)
+- STEP 2: 전략 인사이트 생성 (`OPENAI_MODEL_ADVANCED`, 기본 `gpt-4o-mini-2024-07-18`)
+- 멀티 채널 결과 생성
+- 웹 리포트 HTML 생성 (`output/web/daily_report.html`)
+- 이메일 HTML 포맷 후 SMTP 발송
+- 해외 안전 공지 전용 알림 메일 자동 발송 (당일 공지 존재 시)
+- 수신자 그룹 분리/영속화
+  - 일반 리포트 수신자
+  - 해외 안전 공지 수신자
 
 ## 🚀 설치
 
 ### 1. Python 설치
 
-Python 3.9 이상 필요합니다.
+Python 3.9 이상 필요
 
 ```bash
 python --version
@@ -32,40 +46,53 @@ python --version
 pip install -r requirements.txt
 ```
 
+코드에서 `python-dotenv`를 사용하므로 누락 시 아래도 추가 설치하세요.
+
+```bash
+pip install python-dotenv
+```
+
 ### 3. 환경 변수 설정
 
-`.env.example`을 복사하여 `.env` 파일을 생성하고 API 키를 입력하세요.
+`.env.example`을 복사하여 `.env` 생성
 
 ```bash
 cp .env.example .env
 ```
 
-`.env` 파일 수정:
+`.env` 주요 항목:
 
 ```bash
-# Naver Search API
-NAVER_CLIENT_ID=your_naver_client_id
-NAVER_CLIENT_SECRET=your_naver_client_secret
+# Naver
+NAVER_CLIENT_ID=...
+NAVER_CLIENT_SECRET=...
 
-# Google Custom Search API
-GOOGLE_API_KEY=your_google_api_key
-SEARCH_ENGINE_ID=your_search_engine_id
+# Google CSE
+GOOGLE_API_KEY=...
+SEARCH_ENGINE_ID=...
 
-# OpenAI API
-OPENAI_API_KEY=your_openai_api_key
+# OpenAI
+OPENAI_API_KEY=...
 OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL_BASIC=gpt-4o-mini-2024-07-18
+OPENAI_MODEL_ADVANCED=gpt-4o-mini-2024-07-18
 
 # Gmail SMTP
-GMAIL_USER=your_email@gmail.com
-GMAIL_APP_PASSWORD=your_app_password
+GMAIL_USER=...
+GMAIL_APP_PASSWORD=...
 
-# Recipients (comma separated)
+# 레거시 호환용(선택)
 EMAIL_RECIPIENTS=user1@sk.com,user2@sk.com
+
+# 옵션
+DEBUG_MODE=false
+TIME_WINDOW_HOURS=24
+MAX_ARTICLES_PER_CATEGORY=10
 ```
 
 ## 🎯 사용법
 
-### 기본 실행
+### CLI 전체 파이프라인 실행
 
 ```bash
 python run.py
@@ -77,146 +104,123 @@ python run.py
 python main.py
 ```
 
-### 디버그 모드
+실행 순서:
 
-`.env` 파일에서 설정:
+1. 카테고리별 수집
+2. 시간/키워드 필터링 + 중복 제거
+3. AI 요약/인사이트 생성
+4. 0404 당일 공지 수집
+5. 이메일 발송 + 웹 리포트 생성
 
-```bash
-DEBUG_MODE=true
-```
-
-## 📁 프로젝트 구조
-
-```
-NewsCollector_v2.0/
-├── config/                 # 설정 파일
-│   ├── settings.py         # 환경 변수 로드
-│   ├── categories.yaml     # 카테고리/키워드 설정
-│   └── email_recipients.json  # 이메일 수신자 설정
-├── collectors/             # 데이터 수집 계층
-├── filters/                # 필터링 계층
-├── analyzers/              # AI 분석 계층
-├── notifiers/              # 발송 계층
-├── utils/                  # 유틸리티
-├── web/                    # 웹 대시보드
-│   ├── app.py             # Flask 애플리케이션
-│   ├── routes.py          # API 라우트
-│   ├── templates/         # HTML 템플릿
-│   └── static/            # CSS, JS
-├── output/                 # 출력 파일
-│   ├── logs/              # 로그 파일
-│   ├── web/               # 웹 페이지
-│   └── backups/           # 이메일 백업
-├── main.py                 # 메인 실행 파일
-├── run.py                  # 간편 실행 스크립트
-├── start_web.py           # 웹 대시보드 시작 스크립트
-├── requirements.txt
-├── .env.example
-└── README.md
-```
-
-## 📊 카테고리
-
-| ID | 카테고리 | 설명 |
-|----|---------|------|
-| 0 | Market & Culture | 여행 트렌드, 한류 |
-| 1 | Global Trend | 글로벌 로밍 산업 |
-| 2 | Competitors | SKT/KT/LGU+ 경쟁 현황 |
-| 3 | eSIM Products | eSIM 제품/회사 |
-| 4 | 로밍 VoC | 로밍 고객 후기 |
-| 5 | eSIM VoC | eSIM 고객 후기 |
-
-## 🔧 설정
-
-### 카테고리/키워드 수정
-
-`config/categories.yaml` 파일을 수정하세요.
-
-### 필터링 설정
-
-`config/categories.yaml`의 `filters` 섹션에서:
-
-- `blacklist_domains`: 제외할 도메인 패턴
-- `excluded_keywords`: 제외할 키워드 (게임, 광고 등)
-
-## 📝 로그
-
-로그 파일은 `output/logs/` 디렉토리에 일별로 생성됩니다.
-
-```
-output/logs/
-├── news_collector_20260128.log
-├── news_collector_20260127.log
-└── ...
-```
-
-## 🌐 웹 대시보드
-
-### 웹 대시보드 시작
-
-웹 기반 대시보드를 사용하여 뉴스 수집 및 분석을 제어할 수 있습니다.
+### 웹 대시보드 실행
 
 ```bash
 python start_web.py
 ```
 
-서버가 시작되면 브라우저에서 [http://localhost:5000](http://localhost:5000)에 접속하세요.
+접속: [http://localhost:5000](http://localhost:5000)
 
-### 웹 대시보드 기능
+## 📁 프로젝트 구조
 
-- **🔍 분석 제어**: 버튼 클릭으로 뉴스 수집 및 분석 시작
-- **📧 수신자 관리**: 이메일 수신자 추가/삭제
-- **✉️ 이메일 발송**: 분석 결과를 모든 수신자에게 발송
-- **📋 활동 로그**: 최근 분석 및 발송 기록 확인
+```
+NewsCollector_v2.0/
+├── config/
+│   ├── settings.py
+│   ├── categories.yaml
+│   ├── email_recipients.json
+│   └── recipient_store.py
+├── collectors/
+├── filters/
+├── analyzers/
+├── notifiers/
+├── utils/
+├── web/
+├── output/
+│   ├── logs/
+│   ├── web/
+│   └── backups/
+├── main.py
+├── run.py
+├── start_web.py
+└── README.md
+```
 
-### 기본 수신자
+## 📊 카테고리
 
-다음 SK 직원들이 기본 수신자로 등록되어 있습니다:
+| ID | 카테고리 | 소스 |
+|----|---------|------|
+| 0 | Market & Culture (Macro) | Naver News, Blog |
+| 1 | Global Roaming Trend | Google Search |
+| 2 | SKT & Competitors | Naver News |
+| 3 | eSIM Products | Naver News |
+| 4 | 로밍 VoC | Naver Blog, Cafe |
+| 5 | eSIM VoC | Naver Blog, Cafe |
 
-- sib1979@sk.com
-- minchaekim@sk.com
-- hyunju11.kim@sk.com
-- jieun.baek@sk.com
-- yjwon@sk.com
-- letigon@sk.com
-- lsm0787@sk.com
-- maclogic@sk.com
-- jungjaehoon@sk.com
-- hw.cho@sk.com
-- chlskdud0623@sk.com
-- youngmin.choi@sk.com
-- jinyeol.han@sk.com
-- jeongwoo.hwang@sk.com
-- funda@sk.com
+## 🔧 설정
 
-### 웹 리포트 확인
+### 카테고리/키워드
 
-생성된 웹 리포트는 `output/web/` 디렉토리에서 확인할 수 있습니다.
+`config/categories.yaml`의 `categories`를 수정
 
-대시보드에서 "결과 보기" 버튼을 클릭하면 최신 분석 결과를 바로 확인할 수 있습니다.
+### 필터
 
-## ⚠️ 에러 핸들링
+`config/categories.yaml`의 `filters`:
 
-### 3단계 에러 핸들링
+- `blacklist_domains`
+- `excluded_keywords`
 
-1. **재시도**: API 호출 실패 시 최대 3회 재시도
-2. **대체 로직**: 동일 모델 재시도 (gpt-4o-mini-2024-07-18)
-3. **에러 알림**: 로그 파일에 상세 기록
+## 🌐 웹 대시보드 상세
 
-### 이메일 발송 실패 시
+### 기능
 
-`output/backups/` 디렉토리에 HTML 파일로 백업됩니다.
+- 분석 비동기 실행(백그라운드 스레드)
+- 진행률 표시(0→10→50→80→100)
+- 수신자 그룹별 추가/삭제
+  - 일반 리포트 수신자
+  - 해외 안전 공지 수신자
+- 최신 리포트 열기
+- 최신 HTML 리포트 이메일 발송(일반 리포트 수신자 대상)
+- 분석 완료 후 해외 안전 공지 존재 시 전용 알림 메일 자동 발송
 
-## 🛠️ 개발
+### 주요 API
 
-### 모듈 추가
+- `POST /api/analysis/start`
+- `GET /api/analysis/status/<task_id>`
+- `GET /api/recipients?group=report|safety_alert`
+- `POST /api/recipients?group=report|safety_alert`
+- `DELETE /api/recipients/<email>?group=report|safety_alert`
+- `POST /api/email/send`
+- `GET /api/latest-report`
+- `GET /health`
 
-각 계층에 새로운 모듈을 쉽게 추가할 수 있습니다.
+## 📧 수신자 관리 방식 (중요)
 
-- `collectors/`: 새로운 데이터 소스
-- `filters/`: 새로운 필터링 로직
-- `analyzers/`: 새로운 AI 분석기
-- `notifiers/`: 새로운 발송 채널
+- CLI(`main.py`)와 웹 대시보드 모두 `config/email_recipients.json`을 공통 사용
+- 수신자 그룹:
+  - `report_recipients`: 일반 리포트 메일 수신자
+  - `safety_alert_recipients`: 해외 안전 공지 전용 메일 수신자
+- 수신자 변경사항은 파일에 즉시 저장되어 재시작 후에도 유지
+
+## 🛰️ 0404 외부 공지 수집
+
+- 대상 게시판: 공관안전공지(`embsyNtc`), 안전공지(`safetyNtc`)
+- 기준 날짜: KST(Asia/Seoul) 당일
+- 키워드: 로밍/통신/인터넷/데이터/국제전화/문자/SMS/MMS/차단
+- 결과는 `external_alerts`로 리포트 상단 섹션에 포함
+- 해외 안전 공지 수집 건수 > 0 이면 전용 수신자에게 별도 알림 메일 자동 발송
+
+## ⚠️ 에러 핸들링/재시도
+
+- AI 호출: 최대 3회 재시도(지수 백오프)
+- SMTP 발송: 최대 3회 재시도
+- 이메일 발송 실패 시: `output/backups/email_backup_*.html` 저장
+- 수집 API 실패 시: 로깅 후 가능한 범위 내 계속 진행
+
+## 📝 로그/출력
+
+- 로그: `output/logs/news_collector_YYYYMMDD.log`
+- 웹 리포트: `output/web/daily_report.html`
+- 이메일 실패 백업: `output/backups/*.html`
 
 ## 📄 라이선스
 
@@ -224,9 +228,9 @@ SKT 내부 사용용
 
 ## 📞 지원
 
-문제가 발생하면 `output/logs/`의 로그 파일을 확인하세요.
+문제 발생 시 `output/logs/` 확인
 
 ---
 
-**버전**: 2.0
-**작성일**: 2026-01-28
+**버전**: 2.0  
+**최종 업데이트**: 2026-02-19
