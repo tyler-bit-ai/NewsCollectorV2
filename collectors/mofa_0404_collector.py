@@ -146,7 +146,7 @@ class Mofa0404Collector(BaseCollector):
                         "title": title,
                         "content_one_line": content_preview,
                         "link": link,
-                        "published_date": today_kst,
+                        "published_date": date_text,
                         "matched_keywords": matched,
                     }
                 )

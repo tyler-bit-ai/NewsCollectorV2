@@ -1,16 +1,28 @@
 """
 HTML 이메일 생성
 """
-from typing import Dict
 from datetime import datetime
 import html as html_lib
 import os
+from typing import Dict, List
+
 
 class EmailFormatter:
     """이메일 포매터"""
 
-    def __init__(self, template_dir: str = "notifiers/templates"):
+    CATEGORY_NAMES = {
+        "market_culture": "0. Market & Culture (Macro)",
+        "global_trend": "1. Global Roaming Trend",
+        "competitors": "2. SKT & Competitors",
+        "esim_products": "3. eSIM Products",
+        "voc_roaming": "4. 로밍 VoC",
+        "voc_esim": "5. eSIM VoC",
+    }
+
+    def __init__(self, template_dir: str = "notifiers/templates", top_n: int = 3, summary_max_chars: int = 140):
         self.template_dir = template_dir
+        self.top_n = max(1, top_n)
+        self.summary_max_chars = max(60, summary_max_chars)
 
     def format(self, data: Dict) -> str:
         """
@@ -22,104 +34,173 @@ class EmailFormatter:
         Returns:
             HTML 이메일 본문
         """
-        # 템플릿 로드
         template_path = os.path.join(self.template_dir, "email_template.html")
-
         if os.path.exists(template_path):
-            with open(template_path, 'r', encoding='utf-8') as f:
+            with open(template_path, "r", encoding="utf-8") as f:
                 template = f.read()
         else:
             template = self._get_default_template()
 
-        # 데이터 치환
-        html = template.replace("{{DATE}}", datetime.now().strftime('%Y년 %m월 %d일'))
-        html = html.replace("{{EXTERNAL_ALERTS_SECTION}}", self._format_external_alerts_section(data.get('external_alerts', [])))
-        html = html.replace("{{STRATEGIC_INSIGHT}}", data.get('strategic_insight', ''))
-        html = html.replace("{{KEY_FINDINGS}}", self._format_findings(data.get('key_findings', [])))
-        html = html.replace("{{RECOMMENDATIONS}}", self._format_recommendations(data.get('recommendations', [])))
+        rendered = template.replace("{{DATE}}", datetime.now().strftime("%Y년 %m월 %d일"))
+        rendered = rendered.replace("{{EMAIL_TOP_N}}", str(self.top_n))
+        rendered = rendered.replace("{{TODAY_BRIEF}}", self._format_today_brief(data))
+        rendered = rendered.replace("{{EXTERNAL_ALERTS_SECTION}}", self._format_external_alerts_section(data.get("external_alerts", [])))
+        rendered = rendered.replace("{{STRATEGIC_INSIGHT}}", self._format_paragraph(data.get("strategic_insight", "")))
+        rendered = rendered.replace("{{KEY_FINDINGS}}", self._format_findings(data.get("key_findings", [])))
+        rendered = rendered.replace("{{RECOMMENDATIONS}}", self._format_recommendations(data.get("recommendations", [])))
+        rendered = rendered.replace("{{CATEGORY_SECTIONS}}", self._generate_category_sections(data))
+        return rendered
 
-        # 카테고리 섹션 (동적으로 생성)
-        category_sections = self._generate_category_sections(data)
-        html = html.replace("{{CATEGORY_SECTIONS}}", category_sections)
+    def _format_today_brief(self, data: Dict) -> str:
+        lines: List[str] = []
+        for finding in data.get("key_findings", [])[:3]:
+            lines.append(self._truncate(str(finding), 120))
+        for rec in data.get("recommendations", [])[:2]:
+            lines.append(f"[권고] {self._truncate(str(rec), 120)}")
+        if not lines:
+            lines.append("요약 데이터가 없습니다.")
+        return "\n".join(f"<li>{html_lib.escape(line)}</li>" for line in lines[:5])
 
-        return html
+    def _format_paragraph(self, text: str) -> str:
+        escaped = html_lib.escape(str(text or ""))
+        if not escaped:
+            return "데이터가 없습니다."
+        return escaped.replace("\n", "<br>")
 
-    def _format_findings(self, findings: list) -> str:
-        """주요 발견 포맷팅"""
+    def _format_findings(self, findings: List[str]) -> str:
         if not findings:
             return "<li>없음</li>"
-        return "\n".join(f"<li>{f}</li>" for f in findings)
+        return "\n".join(f"<li>{html_lib.escape(str(item))}</li>" for item in findings)
 
-    def _format_recommendations(self, recommendations: list) -> str:
-        """행동 권고 포맷팅"""
+    def _format_recommendations(self, recommendations: List[str]) -> str:
         if not recommendations:
             return "<li>없음</li>"
-        return "\n".join(f"<li>{r}</li>" for r in recommendations)
+        return "\n".join(f"<li>{html_lib.escape(str(item))}</li>" for item in recommendations)
 
-    def _format_external_alerts_section(self, alerts: list) -> str:
-        """해외 안전 공지 섹션 렌더링"""
+    def _format_external_alerts_section(self, alerts: List[Dict]) -> str:
         if not alerts:
             return """
             <div class="section">
-                <h2>해외 안전 공지</h2>
+                <h2>해외 안전 공지 <span class="count">(0건)</span></h2>
                 <p>당일 매칭 공지 없음</p>
             </div>
             """
 
         rendered = []
-        for alert in alerts:
+        for alert in alerts[: self.top_n]:
             if not isinstance(alert, dict):
                 continue
+            title = html_lib.escape(alert.get("title", ""))
+            content = html_lib.escape(self._truncate(alert.get("content_one_line", ""), self.summary_max_chars))
+            link = html_lib.escape(alert.get("link", ""))
+            board_name = html_lib.escape(alert.get("board_name", ""))
 
-            title = html_lib.escape(alert.get('title', ''))
-            content = html_lib.escape(alert.get('content_one_line', ''))
-            link = html_lib.escape(alert.get('link', ''))
-            board_name = html_lib.escape(alert.get('board_name', ''))
+            rendered.append(
+                f"""
+                <div class="article">
+                    <div class="source">{board_name}</div>
+                    <div class="title">{title}</div>
+                    <div class="summary">{content}</div>
+                    <a href="{link}" class="link">원문 보기</a>
+                </div>
+                """
+            )
 
-            rendered.append(f"""
-            <div class="article">
-                <div class="source">{board_name}</div>
-                <div class="title">{title}</div>
-                <div class="summary">{content}</div>
-                <a href="{link}" class="link">원문 보기</a>
-            </div>
-            """)
+        more_html = ""
+        remaining = alerts[self.top_n :]
+        if remaining:
+            items = []
+            for alert in remaining:
+                if not isinstance(alert, dict):
+                    continue
+                title = html_lib.escape(alert.get("title", ""))
+                link = html_lib.escape(alert.get("link", ""))
+                items.append(f'<li><a href="{link}" class="link">{title}</a></li>')
+            if items:
+                more_html = f"""
+                <div class="more-list">
+                    <strong>기타 {len(items)}건</strong>
+                    <ol>{''.join(items)}</ol>
+                </div>
+                """
 
-        body = "\n".join(rendered) if rendered else "<p>당일 매칭 공지 없음</p>"
         return f"""
         <div class="section">
-            <h2>해외 안전 공지</h2>
-            {body}
+            <h2>해외 안전 공지 <span class="count">({len(alerts)}건)</span></h2>
+            {''.join(rendered)}
+            {more_html}
         </div>
         """
 
     def _generate_category_sections(self, data: Dict) -> str:
-        """카테고리 섹션 생성"""
         sections = []
-
-        category_names = {
-            'market_culture': '0. Market & Culture (Macro)',
-            'global_trend': '1. Global Roaming Trend',
-            'competitors': '2. SKT & Competitors',
-            'esim_products': '3. eSIM Products',
-            'voc_roaming': '4. 로밍 VoC',
-            'voc_esim': '5. eSIM VoC'
-        }
-
-        for key, name in category_names.items():
-            articles = data.get(f'section_{key}', [])
-
-            section = f"""
-            <div class="section">
-                <h2>{name}</h2>
-                {self._render_articles(articles)}
-            </div>
-            """
-            sections.append(section)
-
+        for key, name in self.CATEGORY_NAMES.items():
+            raw_articles = data.get(f"section_{key}", [])
+            articles = [item for item in raw_articles if isinstance(item, dict)]
+            sections.append(self._render_category_section(name=name, category_key=key, articles=articles))
         return "\n".join(sections)
 
-    def format_safety_alert_digest(self, alerts: list) -> str:
+    def _render_category_section(self, name: str, category_key: str, articles: List[Dict]) -> str:
+        if not articles:
+            return f"""
+            <div class="section">
+                <h2>{html_lib.escape(name)} <span class="count">(0건)</span></h2>
+                <p>데이터가 없습니다.</p>
+            </div>
+            """
+
+        top_articles = articles[: self.top_n]
+        remaining = articles[self.top_n :]
+
+        top_html = [self._render_article_card(article, category_key) for article in top_articles]
+        more_html = self._render_more_links(remaining)
+
+        return f"""
+        <div class="section">
+            <h2>{html_lib.escape(name)} <span class="count">({len(articles)}건)</span></h2>
+            {''.join(top_html)}
+            {more_html}
+        </div>
+        """
+
+    def _render_article_card(self, article: Dict, category_key: str) -> str:
+        source = html_lib.escape(str(article.get("source", "")))
+        title = html_lib.escape(str(article.get("title", "")))
+        summary_raw = str(article.get("summary", "")).strip()
+        summary = html_lib.escape(self._truncate(summary_raw, self.summary_max_chars))
+        link = html_lib.escape(str(article.get("link", "")))
+
+        section_hint = "VoC 하이라이트" if category_key.startswith("voc_") else "뉴스 하이라이트"
+        return f"""
+        <div class="article">
+            <div class="source">{section_hint}{' | ' + source if source else ''}</div>
+            <div class="title">{title}</div>
+            <div class="summary">{summary}</div>
+            <a href="{link}" class="link">원문 보기</a>
+        </div>
+        """
+
+    def _render_more_links(self, remaining: List[Dict]) -> str:
+        if not remaining:
+            return ""
+
+        items = []
+        for article in remaining:
+            title = html_lib.escape(str(article.get("title", "")))
+            link = html_lib.escape(str(article.get("link", "")))
+            items.append(f'<li><a href="{link}" class="link">{title}</a></li>')
+
+        if not items:
+            return ""
+
+        return f"""
+        <div class="more-list">
+            <strong>기타 {len(items)}건</strong>
+            <ol>{''.join(items)}</ol>
+        </div>
+        """
+
+    def format_safety_alert_digest(self, alerts: List[Dict]) -> str:
         """
         해외 안전 공지 전용 알림 메일 생성
 
@@ -129,7 +210,7 @@ class EmailFormatter:
         Returns:
             HTML 이메일 본문
         """
-        date_text = datetime.now().strftime('%Y년 %m월 %d일')
+        date_text = datetime.now().strftime("%Y년 %m월 %d일")
         alert_cards = self._render_safety_alert_cards(alerts)
         return f"""
         <!DOCTYPE html>
@@ -160,7 +241,7 @@ class EmailFormatter:
         </html>
         """
 
-    def _render_safety_alert_cards(self, alerts: list) -> str:
+    def _render_safety_alert_cards(self, alerts: List[Dict]) -> str:
         if not alerts:
             return "<p>당일 매칭 공지 없음</p>"
 
@@ -168,45 +249,29 @@ class EmailFormatter:
         for alert in alerts:
             if not isinstance(alert, dict):
                 continue
-            title = html_lib.escape(alert.get('title', ''))
-            content = html_lib.escape(alert.get('content_one_line', ''))
-            link = html_lib.escape(alert.get('link', ''))
-            board_name = html_lib.escape(alert.get('board_name', ''))
-            rendered.append(f"""
-            <div class="article">
-                <div class="source">{board_name}</div>
-                <div class="title">{title}</div>
-                <div class="summary">{content}</div>
-                <a href="{link}" class="link">원문 보기</a>
-            </div>
-            """)
-
+            title = html_lib.escape(str(alert.get("title", "")))
+            content = html_lib.escape(str(alert.get("content_one_line", "")))
+            link = html_lib.escape(str(alert.get("link", "")))
+            board_name = html_lib.escape(str(alert.get("board_name", "")))
+            rendered.append(
+                f"""
+                <div class="article">
+                    <div class="source">{board_name}</div>
+                    <div class="title">{title}</div>
+                    <div class="summary">{content}</div>
+                    <a href="{link}" class="link">원문 보기</a>
+                </div>
+                """
+            )
         return "\n".join(rendered) if rendered else "<p>당일 매칭 공지 없음</p>"
 
-    def _render_articles(self, articles: list) -> str:
-        """기사 리스트 렌더링"""
-        if not articles:
-            return "<p>데이터가 없습니다.</p>"
-
-        rendered = []
-        for article in articles:
-            # 타입 검증 추가
-            if not isinstance(article, dict):
-                continue
-
-            rendered.append(f"""
-            <div class="article">
-                <div class="source">{article.get('source', '')}</div>
-                <div class="title">{article.get('title', '')}</div>
-                <div class="summary">{article.get('summary', '')}</div>
-                <a href="{article.get('link', '')}" class="link">기사 보기</a>
-            </div>
-            """)
-
-        return "\n".join(rendered) if rendered else "<p>데이터가 없습니다.</p>"
+    def _truncate(self, text: str, max_chars: int) -> str:
+        plain = str(text or "").strip()
+        if len(plain) <= max_chars:
+            return plain
+        return f"{plain[:max_chars].rstrip()}..."
 
     def _get_default_template(self) -> str:
-        """기본 HTML 템플릿"""
         return """
         <!DOCTYPE html>
         <html>
@@ -227,24 +292,11 @@ class EmailFormatter:
         <body>
             <h1>SKT 로밍팀 일일 뉴스 리포트</h1>
             <p><strong>{{DATE}}</strong></p>
-
+            <div class="section"><h2>오늘의 5줄 요약</h2><ul>{{TODAY_BRIEF}}</ul></div>
             {{EXTERNAL_ALERTS_SECTION}}
-
-            <div class="section">
-                <h2>📊 전략 인사이트</h2>
-                <p>{{STRATEGIC_INSIGHT}}</p>
-            </div>
-
-            <div class="section">
-                <h2>🔍 주요 발견</h2>
-                <ul>{{KEY_FINDINGS}}</ul>
-            </div>
-
-            <div class="section">
-                <h2>💡 행동 권고</h2>
-                <ul>{{RECOMMENDATIONS}}</ul>
-            </div>
-
+            <div class="section"><h2>📊 전략 인사이트</h2><p>{{STRATEGIC_INSIGHT}}</p></div>
+            <div class="section"><h2>🔍 주요 발견</h2><ul>{{KEY_FINDINGS}}</ul></div>
+            <div class="section"><h2>💡 행동 권고</h2><ul>{{RECOMMENDATIONS}}</ul></div>
             {{CATEGORY_SECTIONS}}
         </body>
         </html>

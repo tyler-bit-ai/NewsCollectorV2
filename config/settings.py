@@ -45,6 +45,10 @@ class Settings:
     debug_mode: bool = False
     time_window_hours: int = 24
     max_articles_per_category: int = 10
+    email_top_n: int = 3
+    email_summary_max_chars: int = 140
+    web_default_visible_n: int = 3
+    web_summary_max_chars: int = 180
 
 
 def load_settings() -> Settings:
@@ -95,5 +99,9 @@ def load_settings() -> Settings:
         ),
         debug_mode=os.getenv('DEBUG_MODE', 'false').lower() == 'true',
         time_window_hours=int(os.getenv('TIME_WINDOW_HOURS', '24')),
-        max_articles_per_category=int(os.getenv('MAX_ARTICLES_PER_CATEGORY', '10'))
+        max_articles_per_category=int(os.getenv('MAX_ARTICLES_PER_CATEGORY', '10')),
+        email_top_n=int(os.getenv('EMAIL_TOP_N', '3')),
+        email_summary_max_chars=int(os.getenv('EMAIL_SUMMARY_MAX_CHARS', '140')),
+        web_default_visible_n=int(os.getenv('WEB_DEFAULT_VISIBLE_N', '3')),
+        web_summary_max_chars=int(os.getenv('WEB_SUMMARY_MAX_CHARS', '180')),
     )

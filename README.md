@@ -22,10 +22,15 @@ SKT 로밍팀을 위한 뉴스 수집 및 AI 분석 시스템
 - 카테고리 간 중복 제거: URL 기준(현재는 로그/통계 용도로 수행)
 - AI 2단계 분석
 - STEP 1: 기사 요약 (`OPENAI_MODEL_BASIC`, 기본 `gpt-4o-mini-2024-07-18`)
+  - `global_trend` 카테고리 제목/요약은 한국어로 번역 생성
 - STEP 2: 전략 인사이트 생성 (`OPENAI_MODEL_ADVANCED`, 기본 `gpt-4o-mini-2024-07-18`)
 - 멀티 채널 결과 생성
 - 웹 리포트 HTML 생성 (`output/web/daily_report.html`)
+  - 실행 시각별 이력 저장 (`output/web/history/daily_report_YYYYMMDD_HHMMSS.html`)
 - 이메일 HTML 포맷 후 SMTP 발송
+- 가독성 최적화 레이아웃
+  - 카테고리별 핵심 `Top N` 카드 + 나머지 링크 목록으로 압축 표시
+  - 요약 본문 길이 자동 절단(`EMAIL_SUMMARY_MAX_CHARS`, `WEB_SUMMARY_MAX_CHARS`)
 - 해외 안전 공지 전용 알림 메일 자동 발송 (당일 공지 존재 시)
 - 수신자 그룹 분리/영속화
   - 일반 리포트 수신자
@@ -89,7 +94,16 @@ EMAIL_RECIPIENTS=user1@sk.com,user2@sk.com
 DEBUG_MODE=false
 TIME_WINDOW_HOURS=24
 MAX_ARTICLES_PER_CATEGORY=10
+EMAIL_TOP_N=3
+EMAIL_SUMMARY_MAX_CHARS=140
+WEB_DEFAULT_VISIBLE_N=3
+WEB_SUMMARY_MAX_CHARS=180
 ```
+
+- `EMAIL_TOP_N`: 메일에서 카테고리별 카드로 보여줄 핵심 기사 수
+- `EMAIL_SUMMARY_MAX_CHARS`: 메일 summary 최대 길이
+- `WEB_DEFAULT_VISIBLE_N`: 웹 리포트에서 기본 노출 카드 수
+- `WEB_SUMMARY_MAX_CHARS`: 웹 리포트 summary 최대 길이
 
 ## 🎯 사용법
 
@@ -112,6 +126,17 @@ python main.py
 3. AI 요약/인사이트 생성
 4. 0404 공지 수집 (기본 당일, 월요일은 주말 확장)
 5. 이메일 발송 + 웹 리포트 생성
+
+### Shrimp Task Manager 규칙 초기화
+
+- 본 저장소는 shrimp 프로젝트 규칙 파일을 루트의 `shrimp-rules.md`로 관리합니다.
+- Codex/Claude Code에서 shrimp를 사용할 때 아래 요청으로 규칙을 초기화/갱신합니다.
+
+```text
+init project rules
+```
+
+- 태스크 계획/실행 전 `shrimp-rules.md`를 우선 참조합니다.
 
 ### 웹 대시보드 실행
 
@@ -180,6 +205,7 @@ NewsCollector_v2.0/
   - 일반 리포트 수신자
   - 해외 안전 공지 수신자
 - 최신 리포트 열기
+- 저장된 리포트 목록 조회/선택 열기
 - 최신 HTML 리포트 이메일 발송(일반 리포트 수신자 대상)
 - 분석 완료 후 해외 안전 공지 존재 시 전용 알림 메일 자동 발송
 
@@ -192,6 +218,7 @@ NewsCollector_v2.0/
 - `DELETE /api/recipients/<email>?group=report|safety_alert`
 - `POST /api/email/send`
 - `GET /api/latest-report`
+- `GET /api/reports?limit=30`
 - `GET /health`
 
 ## 📧 수신자 관리 방식 (중요)
@@ -210,7 +237,16 @@ NewsCollector_v2.0/
   - 월요일(KST) 실행 시: 금요일 09:00 ~ 월요일 09:00 구간을 날짜 기준으로 확장 수집
 - 키워드: 로밍/통신/인터넷/데이터/국제전화/문자/SMS/MMS/차단
 - 결과는 `external_alerts`로 리포트 상단 섹션에 포함
+  - `external_alerts[].published_date`: 0404 게시판의 실제 게시일(`YYYY-MM-DD`)
 - 해외 안전 공지 수집 건수 > 0 이면 전용 수신자에게 별도 알림 메일 자동 발송
+
+### 0404 수집 단위 테스트 실행
+
+```bash
+python -m unittest tests/test_mofa_0404_collector.py -v
+```
+
+- 외부 사이트 접속 없이(mock 기반) 공관안전공지 수집 로직을 검증합니다.
 
 ## ⚠️ 에러 핸들링/재시도
 
@@ -222,7 +258,8 @@ NewsCollector_v2.0/
 ## 📝 로그/출력
 
 - 로그: `output/logs/news_collector_YYYYMMDD.log`
-- 웹 리포트: `output/web/daily_report.html`
+- 웹 리포트(최신): `output/web/daily_report.html`
+- 웹 리포트(이력): `output/web/history/daily_report_YYYYMMDD_HHMMSS.html`
 - 이메일 실패 백업: `output/backups/*.html`
 
 ## 📄 라이선스
@@ -236,4 +273,4 @@ SKT 내부 사용용
 ---
 
 **버전**: 2.0  
-**최종 업데이트**: 2026-02-19
+**최종 업데이트**: 2026-03-04

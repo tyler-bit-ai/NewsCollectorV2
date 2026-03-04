@@ -31,6 +31,48 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 analysis_tasks = {}
 task_lock = threading.Lock()
 
+
+def _list_report_files():
+    """리포트 HTML 파일 목록(최신순) 반환"""
+    output_dir = Path(__file__).parent.parent / 'output'
+    report_dir = output_dir / 'web'
+    if not report_dir.exists():
+        return output_dir, []
+
+    candidates = []
+    latest_path = report_dir / 'daily_report.html'
+    if latest_path.exists():
+        candidates.append(latest_path)
+
+    history_dir = report_dir / 'history'
+    if history_dir.exists():
+        candidates.extend(history_dir.glob('daily_report_*.html'))
+
+    def sort_key(file_path: Path):
+        name = file_path.stem  # daily_report_YYYYMMDD_HHMMSS
+        if name.startswith('daily_report_'):
+            ts = name.replace('daily_report_', '')
+            try:
+                return datetime.strptime(ts, "%Y%m%d_%H%M%S")
+            except ValueError:
+                pass
+        return datetime.fromtimestamp(file_path.stat().st_mtime)
+
+    ordered = sorted(candidates, key=sort_key, reverse=True)
+    return output_dir, ordered
+
+
+def _build_report_item(output_dir: Path, report_file: Path):
+    """리포트 파일 응답 객체 생성"""
+    relative_path = report_file.relative_to(output_dir)
+    return {
+        'filename': report_file.name,
+        'relative_path': str(relative_path),
+        'url': f'/output/{relative_path}',
+        'created_at': datetime.fromtimestamp(report_file.stat().st_mtime).isoformat(),
+    }
+
+
 def _resolve_group():
     group = request.args.get("group", "report").strip()
     if group not in GROUP_TO_KEY:
@@ -303,17 +345,16 @@ def send_email():
         from notifiers.email_formatter import EmailFormatter
 
         # Get latest analyzed news
-        output_dir = Path(__file__).parent.parent / 'output'
-        html_files = list(output_dir.glob('**/*.html'))  # 하위 폴더 포함 모든 HTML 파일 검색
+        output_dir, report_files = _list_report_files()
 
-        if not html_files:
+        if not report_files:
             return jsonify({
                 'success': False,
                 'message': '발송할 뉴스가 없습니다. 먼저 분석을 실행해주세요.'
             }), 400
 
         # Get latest HTML file
-        latest_html = max(html_files, key=lambda f: f.stat().st_mtime)
+        latest_html = report_files[0]
 
         # Read HTML content
         with open(latest_html, 'r', encoding='utf-8') as f:
@@ -345,30 +386,54 @@ def send_email():
 def get_latest_report():
     """Get the latest HTML report file path"""
     try:
-        output_dir = Path(__file__).parent.parent / 'output'
-        html_files = list(output_dir.glob('**/*.html'))
+        output_dir, report_files = _list_report_files()
 
-        if not html_files:
+        if not report_files:
             return jsonify({
                 'success': False,
                 'message': '생성된 리포트가 없습니다'
             }), 404
 
-        # Get latest HTML file by modification time
-        latest_html = max(html_files, key=lambda f: f.stat().st_mtime)
-
-        # Get relative path from output directory
-        relative_path = latest_html.relative_to(output_dir)
+        latest_html = report_files[0]
+        payload = _build_report_item(output_dir, latest_html)
 
         return jsonify({
             'success': True,
-            'filename': latest_html.name,
-            'relative_path': str(relative_path),
-            'url': f'/output/{relative_path}'
+            **payload
         }), 200
 
     except Exception as e:
         logger.error(f"Error getting latest report: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@api_bp.route('/reports', methods=['GET'])
+def get_reports():
+    """Get report history (latest first)"""
+    try:
+        output_dir, report_files = _list_report_files()
+        if not report_files:
+            return jsonify({
+                'success': True,
+                'reports': [],
+                'count': 0
+            }), 200
+
+        limit = request.args.get('limit', default=30, type=int)
+        if limit is None or limit < 1:
+            limit = 30
+        reports = [_build_report_item(output_dir, report) for report in report_files[:limit]]
+
+        return jsonify({
+            'success': True,
+            'reports': reports,
+            'count': len(reports)
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting reports: {e}")
         return jsonify({
             'success': False,
             'message': str(e)

@@ -126,6 +126,23 @@ body {
     margin-bottom: 20px;
 }
 
+.report-history {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.report-history label {
+    font-size: 14px;
+    color: var(--gray-700);
+    min-width: 90px;
+}
+
+.report-history .form-control {
+    max-width: 420px;
+}
+
 .progress-container {
     margin-top: 20px;
 }
@@ -569,6 +586,15 @@ body {
 
     .control-actions {
         flex-direction: column;
+    }
+
+    .report-history {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .report-history .form-control {
+        max-width: none;
     }
 
     .btn {

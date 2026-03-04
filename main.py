@@ -251,7 +251,10 @@ def send_report(analyzed_data: Dict, settings):
 
     # 이메일 생성 및 발송
     logger.info("Generating email...")
-    email_formatter = EmailFormatter()
+    email_formatter = EmailFormatter(
+        top_n=settings.email_top_n,
+        summary_max_chars=settings.email_summary_max_chars,
+    )
     html_content = email_formatter.format(analyzed_data)
 
     logger.info("Sending email...")
@@ -276,7 +279,10 @@ def send_report(analyzed_data: Dict, settings):
 
     # 웹 페이지 생성
     logger.info("Generating web page...")
-    web_generator = WebGenerator()
+    web_generator = WebGenerator(
+        default_visible_n=settings.web_default_visible_n,
+        summary_max_chars=settings.web_summary_max_chars,
+    )
     web_generator.generate(analyzed_data)
 
     logger.info("Report generation completed")
@@ -304,7 +310,10 @@ def send_safety_alert_notification(alerts: List[Dict], settings) -> bool:
         logger.warning("No safety alert recipients configured. Skipping safety alert email.")
         return False
 
-    email_formatter = EmailFormatter()
+    email_formatter = EmailFormatter(
+        top_n=settings.email_top_n,
+        summary_max_chars=settings.email_summary_max_chars,
+    )
     html_content = email_formatter.format_safety_alert_digest(alerts)
     smtp_sender = SMTPSender(
         user=settings.email.gmail_user,
@@ -353,7 +362,10 @@ class NewsCollector:
         self.logger.info("=== Saving Results ===")
         # 웹 페이지만 생성 (이메일 발송 제외)
         from notifiers.web_generator import WebGenerator
-        web_generator = WebGenerator()
+        web_generator = WebGenerator(
+            default_visible_n=self.settings.web_default_visible_n,
+            summary_max_chars=self.settings.web_summary_max_chars,
+        )
         web_generator.generate(analyzed_data)
         self.logger.info("Results saved successfully")
         return True

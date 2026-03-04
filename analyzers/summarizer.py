@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 class Summarizer(BaseAnalyzer):
     """기사 요약기"""
+    TRANSLATE_TO_KOREAN_CATEGORIES = {"global_trend"}
 
     def analyze(self, data: Dict) -> Dict:
         """
@@ -51,12 +52,21 @@ class Summarizer(BaseAnalyzer):
 
     def _summarize_category(self, category: str, articles_text: str) -> List[Dict]:
         """카테고리별 요약"""
+        translate_to_korean = category in self.TRANSLATE_TO_KOREAN_CATEGORIES
+        language_instruction = (
+            "title과 summary는 반드시 자연스러운 한국어로 작성하세요. "
+            "원문이 영어여도 한국어로 번역해서 작성해야 합니다."
+            if translate_to_korean
+            else "title과 summary는 기사 내용을 정확히 반영해 작성하세요."
+        )
+
         prompt = f"""
 다음은 '{category}' 카테고리의 뉴스 기사 목록입니다.
 
 {articles_text}
 
 각 기사를 2-3문장으로 요약하고, 다음 JSON 형식으로 반환:
+{language_instruction}
 
 {{
   "summaries": [
@@ -72,7 +82,7 @@ class Summarizer(BaseAnalyzer):
 
         try:
             response = self._call_ai([
-                {"role": "system", "content": "당신은 뉴스 요약 전문가입니다."},
+                {"role": "system", "content": "당신은 뉴스 요약 전문가입니다. 응답은 반드시 JSON 객체로만 반환하세요."},
                 {"role": "user", "content": prompt}
             ])
 

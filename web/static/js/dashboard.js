@@ -30,6 +30,7 @@ const RECIPIENT_GROUPS = {
 document.addEventListener('DOMContentLoaded', () => {
     loadRecipients('report');
     loadRecipients('safety_alert');
+    loadReportOptions();
     loadActivities();
     setupEventListeners();
 });
@@ -169,6 +170,7 @@ function handleAnalysisComplete(data) {
     const message = `분석 완료! 총 ${result.total}건의 뉴스를 수집하고 분석했습니다.`;
     showToast('분석 완료', message, 'success');
     addActivity('✅', '분석 완료', message);
+    loadReportOptions();
 
     setTimeout(() => {
         document.getElementById('progress-container').style.display = 'none';
@@ -361,6 +363,13 @@ async function sendEmail() {
  */
 async function viewResults() {
     try {
+        const reportSelect = document.getElementById('report-select');
+        const selectedUrl = reportSelect?.value;
+        if (selectedUrl) {
+            window.open(selectedUrl, '_blank');
+            return;
+        }
+
         const response = await fetch('/api/latest-report');
         const data = await response.json();
 
@@ -373,6 +382,50 @@ async function viewResults() {
         console.error('Error viewing results:', error);
         showToast('오류', '리포트를 불러올 수 없습니다', 'error');
     }
+}
+
+async function loadReportOptions() {
+    const reportHistory = document.getElementById('report-history');
+    const reportSelect = document.getElementById('report-select');
+    const viewResultsBtn = document.getElementById('view-results');
+
+    if (!reportHistory || !reportSelect || !viewResultsBtn) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/reports?limit=50');
+        const data = await response.json();
+
+        if (!data.success || !Array.isArray(data.reports) || data.reports.length === 0) {
+            reportSelect.innerHTML = '';
+            reportHistory.style.display = 'none';
+            return;
+        }
+
+        reportSelect.innerHTML = '';
+        data.reports.forEach((report) => {
+            const option = document.createElement('option');
+            option.value = report.url;
+            option.textContent = formatReportLabel(report);
+            reportSelect.appendChild(option);
+        });
+
+        reportHistory.style.display = 'flex';
+        viewResultsBtn.style.display = 'inline-flex';
+    } catch (error) {
+        console.error('Error loading report options:', error);
+    }
+}
+
+function formatReportLabel(report) {
+    if (report.created_at) {
+        const parsed = new Date(report.created_at);
+        if (!Number.isNaN(parsed.getTime())) {
+            return `${parsed.toLocaleString('ko-KR')} - ${report.filename}`;
+        }
+    }
+    return report.filename || '리포트';
 }
 
 /**
