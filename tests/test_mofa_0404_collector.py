@@ -17,17 +17,18 @@ class TestMofa0404Collector(unittest.TestCase):
 
     def test_collect_board_sets_published_date_from_post_date(self):
         list_html = """
-        <a href="/bbs/embsyNtc/123/detail?ntnCd=18" class="btn title">해외 통신 점검 안내</a>
+        <a href="/bbs/embsyNtc/123/detail?ntnCd=18" class="btn title">해외 인터넷 점검 안내</a>
         <td>2026-03-04</td>
         """
-        detail_html = '<div class="view-body">현지 통신 점검으로 데이터 연결이 제한될 수 있습니다.</div>'
+        detail_html = '<div class="view-body">현지 인터넷 장애로 데이터 연결이 제한될 수 있습니다.</div>'
 
         with patch.object(
             self.collector.session,
             "get",
             side_effect=[self._response(list_html), self._response(detail_html)],
         ):
-            self.collector.KEYWORDS = ["통신", "데이터"]
+            self.collector.CHANNEL_KEYWORDS = ["인터넷", "데이터"]
+            self.collector.BLOCK_KEYWORDS = ["장애", "제한"]
             results = self.collector._collect_board(
                 board_key="embsyNtc",
                 list_url=self.collector.BOARD_URLS["embsyNtc"],
@@ -50,7 +51,8 @@ class TestMofa0404Collector(unittest.TestCase):
             "get",
             side_effect=[self._response(list_html), self._response(detail_html)],
         ):
-            self.collector.KEYWORDS = ["통신"]
+            self.collector.CHANNEL_KEYWORDS = ["인터넷", "데이터"]
+            self.collector.BLOCK_KEYWORDS = ["차단", "중단"]
             results = self.collector._collect_board(
                 board_key="embsyNtc",
                 list_url=self.collector.BOARD_URLS["embsyNtc"],
@@ -67,7 +69,7 @@ class TestMofa0404Collector(unittest.TestCase):
             "content_one_line": "중복",
             "link": "https://0404.go.kr/bbs/safetyNtc/ATC0001/detail",
             "published_date": "2026-03-04",
-            "matched_keywords": ["통신"],
+            "matched_keywords": ["인터넷", "차단"],
         }
 
         with patch.object(
@@ -92,7 +94,8 @@ class TestMofa0404Collector(unittest.TestCase):
             "get",
             side_effect=[self._response(list_html), detail_error],
         ):
-            self.collector.KEYWORDS = ["통신"]
+            self.collector.CHANNEL_KEYWORDS = ["인터넷"]
+            self.collector.BLOCK_KEYWORDS = ["차단"]
             results = self.collector._collect_board(
                 board_key="embsyNtc",
                 list_url=self.collector.BOARD_URLS["embsyNtc"],
@@ -101,6 +104,55 @@ class TestMofa0404Collector(unittest.TestCase):
             )
 
         self.assertEqual(results, [])
+
+    def test_collect_board_skips_generic_communication_phrase_without_block_terms(self):
+        list_html = """
+        <a href="/bbs/embsyNtc/123/detail?ntnCd=18" class="btn title">현지 통신 수단 안내</a>
+        <td>2026-03-04</td>
+        """
+        detail_html = '<div class="view-body">비상시 통신 수단과 연락망을 안내합니다.</div>'
+
+        with patch.object(
+            self.collector.session,
+            "get",
+            side_effect=[self._response(list_html), self._response(detail_html)],
+        ):
+            self.collector.CHANNEL_KEYWORDS = ["인터넷", "문자", "통화"]
+            self.collector.BLOCK_KEYWORDS = ["차단", "중단", "불가", "장애", "두절", "제한"]
+            results = self.collector._collect_board(
+                board_key="embsyNtc",
+                list_url=self.collector.BOARD_URLS["embsyNtc"],
+                start_date_kst="2026-03-04",
+                end_date_kst="2026-03-04",
+            )
+
+        self.assertEqual(results, [])
+
+    def test_collect_board_matches_sms_unavailable_notice(self):
+        list_html = """
+        <a href="/bbs/embsyNtc/123/detail?ntnCd=18" class="btn title">현지 SMS 발신 불가 안내</a>
+        <td>2026-03-04</td>
+        """
+        detail_html = '<div class="view-body">통신사 점검으로 SMS/MMS 발신이 일시 불가합니다.</div>'
+
+        with patch.object(
+            self.collector.session,
+            "get",
+            side_effect=[self._response(list_html), self._response(detail_html)],
+        ):
+            self.collector.CHANNEL_KEYWORDS = ["sms", "mms", "문자"]
+            self.collector.BLOCK_KEYWORDS = ["불가"]
+            results = self.collector._collect_board(
+                board_key="embsyNtc",
+                list_url=self.collector.BOARD_URLS["embsyNtc"],
+                start_date_kst="2026-03-04",
+                end_date_kst="2026-03-04",
+            )
+
+        self.assertEqual(len(results), 1)
+        self.assertIn("SMS", results[0]["matched_keywords"])
+        self.assertIn("MMS", results[0]["matched_keywords"])
+        self.assertIn("불가", results[0]["matched_keywords"])
 
 
 if __name__ == "__main__":

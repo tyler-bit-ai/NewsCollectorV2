@@ -30,16 +30,24 @@ class Mofa0404Collector(BaseCollector):
         "safetyNtc": "안전공지",
     }
 
-    KEYWORDS = [
+    CHANNEL_KEYWORDS = [
         "로밍",
-        "통신",
         "인터넷",
         "데이터",
         "국제전화",
+        "통화",
         "문자",
         "sms",
         "mms",
+    ]
+
+    BLOCK_KEYWORDS = [
         "차단",
+        "중단",
+        "불가",
+        "장애",
+        "두절",
+        "제한",
     ]
 
     LIST_ITEM_PATTERN = re.compile(
@@ -174,11 +182,20 @@ class Mofa0404Collector(BaseCollector):
 
     def _matched_keywords(self, text: str) -> List[str]:
         text_lower = text.lower()
-        matched = []
-        for keyword in self.KEYWORDS:
+        matched_channels = []
+        for keyword in self.CHANNEL_KEYWORDS:
             if keyword in text_lower:
-                matched.append(keyword.upper() if keyword in {"sms", "mms"} else keyword)
-        return matched
+                matched_channels.append(keyword.upper() if keyword in {"sms", "mms"} else keyword)
+
+        matched_blocks = []
+        for keyword in self.BLOCK_KEYWORDS:
+            if keyword in text_lower:
+                matched_blocks.append(keyword)
+
+        if not matched_channels or not matched_blocks:
+            return []
+
+        return matched_channels + matched_blocks
 
     def _to_one_line(self, value: str) -> str:
         text = self.TAG_PATTERN.sub(" ", value)
