@@ -24,6 +24,9 @@ SKT 로밍팀을 위한 뉴스 수집 및 AI 분석 시스템
 - STEP 1: 기사 요약 (`OPENAI_MODEL_BASIC`, 기본 `gpt-4o-mini-2024-07-18`)
   - `global_trend` 카테고리 제목/요약은 한국어로 번역 생성
 - STEP 2: 전략 인사이트 생성 (`OPENAI_MODEL_ADVANCED`, 기본 `gpt-4o-mini-2024-07-18`)
+- Global Roaming Trend 한글 전용 표시
+  - 해당 섹션의 제목/요약은 한글만 노출 (영문 비노출)
+  - 번역/후처리 실패 시 한글 대체 문구로 안전 치환
 - 멀티 채널 결과 생성
 - 웹 리포트 HTML 생성 (`output/web/daily_report.html`)
   - 실행 시각별 이력 저장 (`output/web/history/daily_report_YYYYMMDD_HHMMSS.html`)
@@ -146,6 +149,25 @@ python start_web.py
 
 접속: [http://localhost:5000](http://localhost:5000)
 
+### 0404 수집 로직 테스트
+
+단위 테스트(권장, 오프라인):
+
+```bash
+python -m unittest tests/test_mofa_0404_collector_unit.py -v
+python -m unittest tests/test_global_trend_korean_only.py -v
+```
+
+실사이트 스모크 테스트(선택):
+
+```bash
+# PowerShell
+$env:RUN_0404_SMOKE="true"
+python -m unittest tests/test_mofa_0404_collector_smoke.py -v
+```
+
+- 스모크 테스트는 외부 네트워크/사이트 상태에 따라 실패할 수 있어 기본값은 skip입니다.
+
 ## 📁 프로젝트 구조
 
 ```
@@ -235,6 +257,9 @@ NewsCollector_v2.0/
 - 기준 날짜:
   - 기본: KST(Asia/Seoul) 당일
   - 월요일(KST) 실행 시: 금요일 09:00 ~ 월요일 09:00 구간을 날짜 기준으로 확장 수집
+- 날짜 처리 방식:
+  - 0404 수집은 `YYYY-MM-DD` 일 단위 범위로 필터링합니다.
+  - 수집 결과의 `published_date`는 실제 게시판 목록에 표시된 게시일입니다.
 - 키워드: 로밍/통신/인터넷/데이터/국제전화/문자/SMS/MMS/차단
 - 결과는 `external_alerts`로 리포트 상단 섹션에 포함
   - `external_alerts[].published_date`: 0404 게시판의 실제 게시일(`YYYY-MM-DD`)

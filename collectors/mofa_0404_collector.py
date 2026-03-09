@@ -53,9 +53,10 @@ class Mofa0404Collector(BaseCollector):
     )
     TAG_PATTERN = re.compile(r"<[^>]+>")
 
-    def __init__(self, debug_mode: bool = False, max_pages: int = 30):
+    def __init__(self, debug_mode: bool = False, max_pages: int = 30, list_failure_threshold: int = 3):
         super().__init__(debug_mode)
         self.max_pages = max_pages
+        self.list_failure_threshold = max(1, list_failure_threshold)
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -101,6 +102,7 @@ class Mofa0404Collector(BaseCollector):
     def _collect_board(self, board_key: str, list_url: str, start_date_kst: str, end_date_kst: str) -> List[Dict]:
         results: List[Dict] = []
         board_name = self.BOARD_NAMES[board_key]
+        consecutive_failures = 0
 
         for page_index in range(1, self.max_pages + 1):
             page_url = f"{list_url}?pageIndex={page_index}"
@@ -108,8 +110,15 @@ class Mofa0404Collector(BaseCollector):
                 response = self.session.get(page_url, timeout=15)
                 response.raise_for_status()
                 page_html = response.text
+                consecutive_failures = 0
             except Exception as e:
                 logger.warning(f"[0404] Failed to load list page: {page_url} ({e})")
+                consecutive_failures += 1
+                if consecutive_failures >= self.list_failure_threshold:
+                    logger.warning(
+                        f"[0404] Stop board crawl after {consecutive_failures} consecutive failures: {board_name}"
+                    )
+                    break
                 continue
 
             list_items = list(self.LIST_ITEM_PATTERN.finditer(page_html))
@@ -121,11 +130,22 @@ class Mofa0404Collector(BaseCollector):
             for match in list_items:
                 date_text = match.group("date").strip()
                 if start_date_kst <= date_text <= end_date_kst:
-                    target_items.append(match)
+                    target_items.append(
+                        {
+                            "match": match,
+                            "date_text": date_text,
+                        }
+                    )
                 elif date_text < start_date_kst:
                     older_exists = True
 
-            for match in target_items:
+            logger.info(
+                f"[0404] {board_name} page {page_index}: parsed={len(list_items)}, in_range={len(target_items)}"
+            )
+
+            for item in target_items:
+                match = item["match"]
+                date_text = item["date_text"]
                 relative_link = html.unescape(match.group("link").strip())
                 link = f"https://0404.go.kr{relative_link}"
                 title = self._to_one_line(match.group("title"))
@@ -156,6 +176,7 @@ class Mofa0404Collector(BaseCollector):
             if not target_items and older_exists:
                 break
 
+        logger.info(f"[0404] {board_name} matched posts: {len(results)}")
         return results
 
     def _fetch_detail_body(self, detail_url: str) -> str:

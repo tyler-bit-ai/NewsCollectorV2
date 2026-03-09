@@ -5,6 +5,7 @@ from datetime import datetime
 import html as html_lib
 import os
 from typing import Dict, List
+from utils.helpers import ensure_global_trend_korean_text
 
 
 class EmailFormatter:
@@ -153,7 +154,7 @@ class EmailFormatter:
         remaining = articles[self.top_n :]
 
         top_html = [self._render_article_card(article, category_key) for article in top_articles]
-        more_html = self._render_more_links(remaining)
+        more_html = self._render_more_links(remaining, category_key=category_key)
 
         return f"""
         <div class="section">
@@ -165,8 +166,11 @@ class EmailFormatter:
 
     def _render_article_card(self, article: Dict, category_key: str) -> str:
         source = html_lib.escape(str(article.get("source", "")))
-        title = html_lib.escape(str(article.get("title", "")))
+        title_raw = str(article.get("title", ""))
         summary_raw = str(article.get("summary", "")).strip()
+        if category_key == "global_trend":
+            title_raw, summary_raw = ensure_global_trend_korean_text(title_raw, summary_raw)
+        title = html_lib.escape(title_raw)
         summary = html_lib.escape(self._truncate(summary_raw, self.summary_max_chars))
         link = html_lib.escape(str(article.get("link", "")))
 
@@ -180,13 +184,16 @@ class EmailFormatter:
         </div>
         """
 
-    def _render_more_links(self, remaining: List[Dict]) -> str:
+    def _render_more_links(self, remaining: List[Dict], category_key: str = "") -> str:
         if not remaining:
             return ""
 
         items = []
         for article in remaining:
-            title = html_lib.escape(str(article.get("title", "")))
+            title_raw = str(article.get("title", ""))
+            if category_key == "global_trend":
+                title_raw, _ = ensure_global_trend_korean_text(title_raw, "")
+            title = html_lib.escape(title_raw)
             link = html_lib.escape(str(article.get("link", "")))
             items.append(f'<li><a href="{link}" class="link">{title}</a></li>')
 
