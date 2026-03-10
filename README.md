@@ -12,7 +12,7 @@ SKT 로밍팀을 위한 뉴스 수집 및 AI 분석 시스템
 - 자동 뉴스 수집
 - Naver News / Blog / Cafe Search API
 - Google Custom Search API
-- 0404.go.kr 공관안전공지/안전공지 당일 키워드 매칭 수집
+- 0404.go.kr 공관안전공지/안전공지 당일 통신/로밍 맥락 기반 수집
 - 스마트 필터링
 - 시간 필터 (`TIME_WINDOW_HOURS`, 기본 24시간)
   - 월요일(KST) 실행 시: 금요일 09:00 ~ 월요일 09:00 고정 구간
@@ -260,18 +260,23 @@ NewsCollector_v2.0/
 - 날짜 처리 방식:
   - 0404 수집은 `YYYY-MM-DD` 일 단위 범위로 필터링합니다.
   - 수집 결과의 `published_date`는 실제 게시판 목록에 표시된 게시일입니다.
-- 키워드: 로밍/통신/인터넷/데이터/국제전화/문자/SMS/MMS/차단
+- 강한 키워드: 로밍/eSIM/유심/SIM/데이터 로밍/국제전화/SMS/MMS
+- 문맥 키워드: 통신/인터넷/데이터/문자/휴대전화/전화/통화/모바일/네트워크
+- 약한 키워드: `차단`은 단독 매칭하지 않고 통신 장애 문맥에서만 보조로 사용
+- 제외 문맥: `통신 보안`, 군사/반군, 화산/가스, `공기 유입 차단`, `출입 차단` 등 일반 안전 문구는 제외
 - 결과는 `external_alerts`로 리포트 상단 섹션에 포함
   - `external_alerts[].published_date`: 0404 게시판의 실제 게시일(`YYYY-MM-DD`)
+  - `external_alerts[].match_reason`, `external_alerts[].matched_keywords`, `external_alerts[].matched_excerpt`를 함께 포함
 - 해외 안전 공지 수집 건수 > 0 이면 전용 수신자에게 별도 알림 메일 자동 발송
 
 ### 0404 수집 단위 테스트 실행
 
 ```bash
 python -m unittest tests/test_mofa_0404_collector.py -v
+python -m unittest tests/test_mofa_0404_collector_unit.py -v
 ```
 
-- 외부 사이트 접속 없이(mock 기반) 공관안전공지 수집 로직을 검증합니다.
+- 외부 사이트 접속 없이(mock 기반) 공관안전공지 수집 로직과 0404 오탐 회귀 케이스를 검증합니다.
 
 ## ⚠️ 에러 핸들링/재시도
 
@@ -299,3 +304,8 @@ SKT 내부 사용용
 
 **버전**: 2.0  
 **최종 업데이트**: 2026-03-04
+## 최근 수정 메모
+
+- `notifiers/web_generator.py`의 외부 공지 섹션 렌더링에서 정의되지 않은 `category_key`
+  참조를 제거해 `name 'category_key' is not defined` 예외를 수정했습니다.
+- 회귀 확인은 `python -m unittest tests/test_global_trend_korean_only.py -v`로 수행할 수 있습니다.

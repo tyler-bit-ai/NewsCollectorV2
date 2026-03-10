@@ -52,5 +52,25 @@ class GlobalTrendKoreanOnlyTests(unittest.TestCase):
         self.assertIn("한글 번역 준비중", card_html)
 
 
+    def test_web_generator_external_alerts_section_does_not_use_category_key(self):
+        generator = WebGenerator(default_visible_n=1)
+        section_html = generator._render_external_alerts_section([
+            {
+                "title": "Travel advisory",
+                "content_one_line": "Notice body",
+                "link": "https://example.com/1",
+                "board_name": "0404",
+            },
+            {
+                "title": "Entry restriction",
+                "content_one_line": "Second notice",
+                "link": "https://example.com/2",
+                "board_name": "0404",
+            },
+        ])
+        self.assertIn("https://example.com/1", section_html)
+        self.assertIn("https://example.com/2", section_html)
+
+
 if __name__ == "__main__":
     unittest.main()

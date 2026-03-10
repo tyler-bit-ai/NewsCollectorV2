@@ -230,10 +230,11 @@ class WebGenerator:
             </div>
             """
 
-        highlights = [alert for alert in alerts if isinstance(alert, dict)][: self.default_visible_n]
-        remaining = [alert for alert in alerts if isinstance(alert, dict)][self.default_visible_n :]
+        valid_alerts = [alert for alert in alerts if isinstance(alert, dict)]
+        highlights = valid_alerts[: self.default_visible_n]
+        remaining = valid_alerts[self.default_visible_n :]
         cards = [self._render_external_alert_card(item) for item in highlights]
-        more = self._render_more_links(remaining, category_key=category_key)
+        more = self._render_external_alert_links(remaining)
 
         return f"""
         <div class="section">
@@ -257,6 +258,28 @@ class WebGenerator:
         </div>
         """
 
+    def _render_external_alert_links(self, remaining: List[Dict]) -> str:
+        if not remaining:
+            return ""
+
+        rows = []
+        for item in remaining:
+            if not isinstance(item, dict):
+                continue
+            title = html_lib.escape(str(item.get("title", "")))
+            link = html_lib.escape(str(item.get("link", "")))
+            rows.append(f'<li><a href="{link}" class="link" target="_blank">{title}</a></li>')
+
+        if not rows:
+            return ""
+
+        return f"""
+        <details class="more">
+            <summary>湲고? {len(rows)}嫄???蹂닿린</summary>
+            <ol>{''.join(rows)}</ol>
+        </details>
+        """
+
     def _generate_category_sections(self, data: Dict) -> str:
         sections = []
         for key, name in self.CATEGORY_NAMES.items():
@@ -277,7 +300,7 @@ class WebGenerator:
         top_articles = articles[: self.default_visible_n]
         remaining = articles[self.default_visible_n :]
         top_html = [self._render_article_card(article, category_key) for article in top_articles]
-        more = self._render_more_links(remaining)
+        more = self._render_more_links(remaining, category_key=category_key)
 
         return f"""
         <div class="section">
