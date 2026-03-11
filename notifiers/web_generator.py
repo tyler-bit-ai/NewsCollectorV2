@@ -6,6 +6,7 @@ import html as html_lib
 import os
 from typing import Dict, List
 import logging
+from utils.helpers import ensure_global_trend_korean_text
 
 logger = logging.getLogger(__name__)
 
@@ -229,10 +230,11 @@ class WebGenerator:
             </div>
             """
 
-        highlights = [alert for alert in alerts if isinstance(alert, dict)][: self.default_visible_n]
-        remaining = [alert for alert in alerts if isinstance(alert, dict)][self.default_visible_n :]
+        valid_alerts = [alert for alert in alerts if isinstance(alert, dict)]
+        highlights = valid_alerts[: self.default_visible_n]
+        remaining = valid_alerts[self.default_visible_n :]
         cards = [self._render_external_alert_card(item) for item in highlights]
-        more = self._render_more_links(remaining)
+        more = self._render_external_alert_links(remaining)
 
         return f"""
         <div class="section">
@@ -256,6 +258,28 @@ class WebGenerator:
         </div>
         """
 
+    def _render_external_alert_links(self, remaining: List[Dict]) -> str:
+        if not remaining:
+            return ""
+
+        rows = []
+        for item in remaining:
+            if not isinstance(item, dict):
+                continue
+            title = html_lib.escape(str(item.get("title", "")))
+            link = html_lib.escape(str(item.get("link", "")))
+            rows.append(f'<li><a href="{link}" class="link" target="_blank">{title}</a></li>')
+
+        if not rows:
+            return ""
+
+        return f"""
+        <details class="more">
+            <summary>湲고? {len(rows)}嫄???蹂닿린</summary>
+            <ol>{''.join(rows)}</ol>
+        </details>
+        """
+
     def _generate_category_sections(self, data: Dict) -> str:
         sections = []
         for key, name in self.CATEGORY_NAMES.items():
@@ -276,7 +300,7 @@ class WebGenerator:
         top_articles = articles[: self.default_visible_n]
         remaining = articles[self.default_visible_n :]
         top_html = [self._render_article_card(article, category_key) for article in top_articles]
-        more = self._render_more_links(remaining)
+        more = self._render_more_links(remaining, category_key=category_key)
 
         return f"""
         <div class="section">
@@ -288,8 +312,12 @@ class WebGenerator:
 
     def _render_article_card(self, article: Dict, category_key: str) -> str:
         source = html_lib.escape(str(article.get("source", "")))
-        title = html_lib.escape(str(article.get("title", "")))
-        summary = html_lib.escape(self._truncate(str(article.get("summary", "")), self.summary_max_chars))
+        title_raw = str(article.get("title", ""))
+        summary_raw = str(article.get("summary", ""))
+        if category_key == "global_trend":
+            title_raw, summary_raw = ensure_global_trend_korean_text(title_raw, summary_raw)
+        title = html_lib.escape(title_raw)
+        summary = html_lib.escape(self._truncate(summary_raw, self.summary_max_chars))
         link = html_lib.escape(str(article.get("link", "")))
         section_hint = "VoC 하이라이트" if category_key.startswith("voc_") else "뉴스 하이라이트"
         source_line = f"{section_hint}{' | ' + source if source else ''}"
@@ -302,7 +330,7 @@ class WebGenerator:
         </div>
         """
 
-    def _render_more_links(self, remaining: List[Dict]) -> str:
+    def _render_more_links(self, remaining: List[Dict], category_key: str = "") -> str:
         if not remaining:
             return ""
 
@@ -310,7 +338,10 @@ class WebGenerator:
         for item in remaining:
             if not isinstance(item, dict):
                 continue
-            title = html_lib.escape(str(item.get("title", "")))
+            title_raw = str(item.get("title", ""))
+            if category_key == "global_trend":
+                title_raw, _ = ensure_global_trend_korean_text(title_raw, "")
+            title = html_lib.escape(title_raw)
             link = html_lib.escape(str(item.get("link", "")))
             rows.append(f'<li><a href="{link}" class="link" target="_blank">{title}</a></li>')
 

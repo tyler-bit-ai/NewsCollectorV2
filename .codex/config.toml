@@ -1,0 +1,9 @@
+[mcp_servers.shrimp]
+command = "node"
+args = ["/Claude Code/mcp-shrimp-task-manager/dist/index.js"]
+startup_timeout_sec = 30
+
+[mcp_servers.shrimp.env]
+DATA_DIR = "/Codex/0219_NewsCollectorV2/shrimp-data"
+TEMPLATES_USE = "ko"
+ENABLE_GUI = "false"

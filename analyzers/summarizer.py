@@ -5,6 +5,7 @@ from typing import Dict, List
 import logging
 
 from .base import BaseAnalyzer
+from utils.helpers import ensure_global_trend_korean_text
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,8 @@ class Summarizer(BaseAnalyzer):
 
             # AI 요약 호출
             summaries = self._summarize_category(category, articles_text)
+            if category == "global_trend":
+                summaries = self._enforce_global_trend_korean_only(summaries)
             results[category] = summaries
 
         return results
@@ -103,3 +106,21 @@ class Summarizer(BaseAnalyzer):
         except Exception as e:
             logger.error(f"Summary failed for {category}: {e}")
             return []
+
+    def _enforce_global_trend_korean_only(self, summaries: List[Dict]) -> List[Dict]:
+        """Sanitize global_trend summaries to Korean-only text."""
+        sanitized: List[Dict] = []
+        for item in summaries:
+            if not isinstance(item, dict):
+                continue
+
+            title, summary = ensure_global_trend_korean_text(
+                title=item.get("title", ""),
+                summary=item.get("summary", ""),
+            )
+            safe_item = dict(item)
+            safe_item["title"] = title
+            safe_item["summary"] = summary
+            sanitized.append(safe_item)
+
+        return sanitized
