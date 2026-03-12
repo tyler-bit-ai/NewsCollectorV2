@@ -24,7 +24,7 @@ class Mofa0404CollectorUnitTests(unittest.TestCase):
         list_html = """
         <table>
           <tr>
-            <td><a href="/bbs/safetyNtc/ATC0000000048238/detail" class="btn title">통신 장애 공지</a></td>
+            <td><a href="/bbs/safetyNtc/ATC0000000048238/detail" class="btn title">안전 안내</a></td>
             <td>2026-03-04</td>
           </tr>
         </table>
@@ -40,8 +40,8 @@ class Mofa0404CollectorUnitTests(unittest.TestCase):
         self.assertEqual(1, len(items))
         self.assertEqual("2026-03-04", items[0]["published_date"])
         self.assertEqual("context_disruption_sentence", items[0]["match_reason"])
-        self.assertIn("통신", items[0]["matched_keywords"])
-        self.assertIn("장애", items[0]["matched_keywords"])
+        self.assertIn("문자", items[0]["matched_keywords"])
+        self.assertIn("지연", items[0]["matched_keywords"])
 
     def test_collect_by_date_range_excludes_out_of_range_dates(self):
         list_html = """
@@ -97,16 +97,41 @@ class Mofa0404CollectorUnitTests(unittest.TestCase):
             body_text="세부 내용은 추후 공지 예정입니다.",
         )
         self.assertIsNotNone(result)
-        self.assertEqual("title_strong_keyword", result["match_reason"])
+        self.assertEqual("title_service_disruption", result["match_reason"])
 
     def test_classify_post_accepts_context_disruption_sentence(self):
         result = self.collector._classify_post(
-            title="통신 장애 공지",
+            title="현지 안전 안내",
             body_text="현지 인터넷 접속이 불안정하고 문자 수신이 지연되고 있습니다.",
         )
         self.assertIsNotNone(result)
         self.assertEqual("context_disruption_sentence", result["match_reason"])
-        self.assertIn("통신", result["matched_keywords"])
+        self.assertIn("인터넷", result["matched_keywords"])
+        self.assertIn("지연", result["matched_keywords"])
+
+    def test_classify_post_rejects_missing_person_notice(self):
+        result = self.collector._classify_post(
+            title="연락두절 공고(정승우)",
+            body_text="연락이 두절된 아래인을 아시는 분은 대사관 해외안전팀 또는 긴급전화로 연락주시기 바랍니다.",
+        )
+        self.assertIsNone(result)
+
+    def test_classify_post_rejects_airport_access_restriction_notice(self):
+        result = self.collector._classify_post(
+            title="주의 중동지역 일부 국제공항 공항 내 출입 제한 관련 안내(항공권 미소지자 출입 제한)",
+            body_text="항공권 미소지자는 공항 터미널 진입이 제한되고 있습니다.",
+        )
+        self.assertIsNone(result)
+
+    def test_classify_post_rejects_advisory_leaflet_with_possible_network_issue(self):
+        result = self.collector._classify_post(
+            title="페루 안전여행 길잡이 (안전여행정보 리플릿)",
+            body_text=(
+                "정글 투어 지역은 전력 혹은 통신망이 원활하지 않아 장시간 연락이 되지 않을 가능성이 크니 "
+                "안전한 체류를 위해 참고하시길 바랍니다."
+            ),
+        )
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":

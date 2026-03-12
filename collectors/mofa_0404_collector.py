@@ -43,14 +43,10 @@ class Mofa0404Collector(BaseCollector):
     ]
     CONTEXT_KEYWORDS = [
         "통신",
+        "통신망",
         "인터넷",
         "데이터",
         "문자",
-        "휴대전화",
-        "핸드폰",
-        "전화",
-        "통화",
-        "모바일",
         "네트워크",
     ]
     WEAK_KEYWORDS = [
@@ -91,7 +87,53 @@ class Mofa0404Collector(BaseCollector):
         r"유해\s*가스",
         r"공기\s*유입\s*차단",
         r"출입\s*차단",
+        r"연락두절",
+        r"연락주시기\s*바랍니다",
+        r"긴급전화",
+        r"대표전화",
+        r"직통",
+        r"영사안전콜센터",
+        r"출입\s*제한",
+        r"하차\s*제한",
+        r"항공권\s*미소지자",
+        r"터미널\s*진입",
+        r"리플릿",
+        r"체류\s*정보",
+        r"대비\s*요령",
+        r"유용한\s*여행정보",
     ]
+    ADVISORY_MARKERS = [
+        "가능성",
+        "참고",
+        "리플릿",
+        "체류 정보",
+        "대응 방법",
+        "대비 요령",
+        "유용한 여행정보",
+        "안내드립니다",
+    ]
+    ACTIVE_ISSUE_MARKERS = [
+        "현재",
+        "최근",
+        "일시",
+        "일부",
+        "장애",
+        "불가",
+        "중단",
+        "지연",
+        "오류",
+        "먹통",
+        "마비",
+        "복구",
+        "점검",
+        "원활하지 않습니다",
+        "원활하지 않아",
+        "수신 불가",
+        "발신 불가",
+        "접속 불가",
+        "사용 불가",
+    ]
+    TITLE_SERVICE_KEYWORDS = STRONG_KEYWORDS + CONTEXT_KEYWORDS
     KEYWORDS = STRONG_KEYWORDS + CONTEXT_KEYWORDS + WEAK_KEYWORDS
 
     LIST_ITEM_PATTERN = re.compile(
@@ -246,42 +288,31 @@ class Mofa0404Collector(BaseCollector):
         return self._to_one_line(match.group("body"))
 
     def _classify_post(self, title: str, body_text: str) -> Optional[Dict]:
-        title_hits = self._matched_keywords(title)
-        title_strong_hits = self._find_keywords(title, self.STRONG_KEYWORDS)
         combined_text = f"{title} {body_text}".strip()
-        combined_hits = self._matched_keywords(combined_text)
-        combined_strong_hits = self._find_keywords(combined_text, self.STRONG_KEYWORDS)
-        combined_disruption_hits = self._find_keywords(combined_text, self.DISRUPTION_KEYWORDS)
-        combined_weak_hits = self._find_keywords(combined_text, self.WEAK_KEYWORDS)
+        if self._has_exclude_pattern(combined_text):
+            return None
 
-        if title_strong_hits:
+        title_service_hits = self._find_keywords(title, self.TITLE_SERVICE_KEYWORDS)
+        title_disruption_hits = self._find_keywords(title, self.DISRUPTION_KEYWORDS)
+        body_hits = self._matched_keywords(body_text)
+        if title_service_hits and title_disruption_hits and not self._looks_like_advisory(title):
             return self._build_match_result(
-                reason="title_strong_keyword",
-                matched_keywords=combined_strong_hits + combined_disruption_hits + combined_weak_hits,
+                reason="title_service_disruption",
+                matched_keywords=title_service_hits + title_disruption_hits + body_hits,
                 excerpt=title,
             )
 
-        if combined_strong_hits:
-            excerpt = self._find_excerpt(combined_text, combined_strong_hits)
+        body_match = self._find_context_disruption_match(title="", body_text=body_text)
+        if title_service_hits and body_match:
             return self._build_match_result(
-                reason="strong_keyword",
-                matched_keywords=combined_strong_hits + combined_disruption_hits + combined_weak_hits,
-                excerpt=excerpt,
+                reason="title_service_with_body_disruption",
+                matched_keywords=title_service_hits + body_match["matched_keywords"],
+                excerpt=body_match["matched_excerpt"] or title,
             )
-
-        if self._has_exclude_pattern(combined_text):
-            return None
 
         sentence_match = self._find_context_disruption_match(title=title, body_text=body_text)
         if sentence_match:
             return sentence_match
-
-        if title_hits and self._has_disruption_keyword(title):
-            return self._build_match_result(
-                reason="title_context_with_disruption",
-                matched_keywords=title_hits,
-                excerpt=title,
-            )
 
         return None
 
@@ -289,21 +320,15 @@ class Mofa0404Collector(BaseCollector):
         for sentence in self._split_sentences(f"{title}\n{body_text}"):
             if self._has_exclude_pattern(sentence):
                 continue
-            context_hits = self._find_keywords(sentence, self.CONTEXT_KEYWORDS)
+            if self._looks_like_advisory(sentence):
+                continue
+            context_hits = self._find_keywords(sentence, self.TITLE_SERVICE_KEYWORDS)
             disruption_hits = self._find_keywords(sentence, self.DISRUPTION_KEYWORDS)
-            weak_hits = self._find_keywords(sentence, self.WEAK_KEYWORDS)
 
-            if context_hits and disruption_hits:
+            if context_hits and disruption_hits and self._has_active_issue_marker(sentence):
                 return self._build_match_result(
                     reason="context_disruption_sentence",
-                    matched_keywords=context_hits + disruption_hits + weak_hits,
-                    excerpt=sentence,
-                )
-
-            if context_hits and weak_hits and self._has_nearby_disruption(sentence):
-                return self._build_match_result(
-                    reason="context_weak_with_disruption",
-                    matched_keywords=context_hits + weak_hits,
+                    matched_keywords=context_hits + disruption_hits,
                     excerpt=sentence,
                 )
 
@@ -331,11 +356,16 @@ class Mofa0404Collector(BaseCollector):
     def _has_disruption_keyword(self, text: str) -> bool:
         return bool(self._find_keywords(text, self.DISRUPTION_KEYWORDS))
 
-    def _has_nearby_disruption(self, text: str) -> bool:
-        return self._has_disruption_keyword(text)
-
     def _has_exclude_pattern(self, text: str) -> bool:
         return any(pattern.search(text) for pattern in self._compiled_exclude_patterns)
+
+    def _has_active_issue_marker(self, text: str) -> bool:
+        text_lower = text.lower()
+        return any(marker.lower() in text_lower for marker in self.ACTIVE_ISSUE_MARKERS)
+
+    def _looks_like_advisory(self, text: str) -> bool:
+        text_lower = text.lower()
+        return any(marker.lower() in text_lower for marker in self.ADVISORY_MARKERS)
 
     def _split_sentences(self, text: str) -> List[str]:
         parts = [part.strip() for part in self.SENTENCE_SPLIT_PATTERN.split(text) if part.strip()]

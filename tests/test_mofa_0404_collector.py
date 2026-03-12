@@ -17,7 +17,7 @@ class TestMofa0404Collector(unittest.TestCase):
 
     def test_collect_board_sets_published_date_from_post_date(self):
         list_html = """
-        <a href="/bbs/embsyNtc/123/detail?ntnCd=18" class="btn title">해외 통신 장애 안내</a>
+        <a href="/bbs/embsyNtc/123/detail?ntnCd=18" class="btn title">해외 안전 안내</a>
         <td>2026-03-04</td>
         """
         detail_html = '<div class="view-body">현지 통신 장애로 데이터 사용이 제한되고 있습니다.</div>'
@@ -102,7 +102,7 @@ class TestMofa0404Collector(unittest.TestCase):
 
         self.assertEqual(len(results), 1)
         self.assertEqual("", results[0]["content_one_line"])
-        self.assertEqual("context_disruption_sentence", results[0]["match_reason"])
+        self.assertEqual("title_service_disruption", results[0]["match_reason"])
 
     def test_collect_board_skips_generic_communication_phrase_without_block_terms(self):
         list_html = """
