@@ -25,8 +25,8 @@ SKT 로밍팀을 위한 뉴스 수집 및 AI 분석 시스템
   - `global_trend` 카테고리 제목/요약은 한국어로 번역 생성
 - STEP 2: 전략 인사이트 생성 (`OPENAI_MODEL_ADVANCED`, 기본 `gpt-4o-mini-2024-07-18`)
 - Global Roaming Trend 한글 전용 표시
-  - 해당 섹션의 제목/요약은 한글만 노출 (영문 비노출)
-  - 번역/후처리 실패 시 한글 대체 문구로 안전 치환
+  - 해당 섹션은 한글 중심으로 노출하며, 한글이 전혀 없는 영문 문장만 fallback 처리
+  - 번역/후처리 결과가 완전 영문이거나 비어 있으면 한글 대체 문구로 안전 치환
 - 멀티 채널 결과 생성
 - 웹 리포트 HTML 생성 (`output/web/daily_report.html`)
   - 실행 시각별 이력 저장 (`output/web/history/daily_report_YYYYMMDD_HHMMSS.html`)
@@ -103,6 +103,7 @@ WEB_DEFAULT_VISIBLE_N=3
 WEB_SUMMARY_MAX_CHARS=180
 ```
 
+- `MAX_ARTICLES_PER_CATEGORY`: 현재는 설정만 로드되며 메인 수집 루프(`main.py`)에서는 실제 제한값으로 사용하지 않는 예약 항목
 - `EMAIL_TOP_N`: 메일에서 카테고리별 카드로 보여줄 핵심 기사 수
 - `EMAIL_SUMMARY_MAX_CHARS`: 메일 summary 최대 길이
 - `WEB_DEFAULT_VISIBLE_N`: 웹 리포트에서 기본 노출 카드 수
@@ -148,6 +149,38 @@ python start_web.py
 ```
 
 접속: [http://localhost:5000](http://localhost:5000)
+
+## 🖼️ 실행 예시와 결과 화면
+
+아래 예시는 저장소의 최신 산출물 기준으로 반영했습니다.
+
+- 기준 실행일: `2026-03-19`
+- 최신 리포트: `output/web/daily_report.html`
+- 이력 리포트 예시: `output/web/history/daily_report_20260319_093301.html`
+- 최신 로그: `output/logs/news_collector_20260319.log`
+
+### 실행 로그 예시
+
+```text
+[2026-03-19 09:29:12] [INFO] [news_collector] Total unique articles: 157
+[2026-03-19 09:29:12] [INFO] [news_collector] STEP 1: Summarizing articles with gpt-4o-mini-2024-07-18...
+[2026-03-19 09:30:29] [INFO] [news_collector] STEP 2: Generating insights with gpt-4o-mini-2024-07-18...
+[2026-03-19 09:33:01] [INFO] [news_collector] External alerts collected: 1
+[2026-03-19 09:33:01] [INFO] [news_collector] Results saved successfully
+[2026-03-19 09:33:04] [INFO] [news_collector] Safety alert email sent successfully to 4 recipients
+```
+
+### 웹 대시보드 예시
+
+`python start_web.py` 실행 후 접속하는 관리 화면입니다. 수신자 관리, 분석 시작, 저장된 리포트 선택 기능을 제공합니다.
+
+![웹 대시보드 예시](docs/images/dashboard.png)
+
+### 생성 결과 리포트 예시
+
+분석 완료 후 생성되는 최신 HTML 리포트 화면입니다. 본 예시는 `output/web/daily_report.html`을 캡처한 이미지입니다.
+
+![일일 뉴스 리포트 예시](docs/images/daily-report.png)
 
 ### 0404 수집 로직 테스트
 
@@ -308,9 +341,11 @@ SKT 내부 사용용
 ---
 
 **버전**: 2.0  
-**최종 업데이트**: 2026-03-04
+**최종 업데이트**: 2026-03-19
 ## 최근 수정 메모
 
+- `README.md`를 현재 코드/출력 기준으로 재검토하고, 최신 실행 예시와 결과 화면 캡처(`docs/images/*.png`)를 반영했습니다.
+- `.env` 예시의 `MAX_ARTICLES_PER_CATEGORY`는 현재 메인 수집 루프에서 실제 사용되지 않는 예약 항목임을 명시했습니다.
 - `notifiers/web_generator.py`의 외부 공지 섹션 렌더링에서 정의되지 않은 `category_key`
   참조를 제거해 `name 'category_key' is not defined` 예외를 수정했습니다.
 - 회귀 확인은 `python -m unittest tests/test_global_trend_korean_only.py -v`로 수행할 수 있습니다.
