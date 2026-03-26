@@ -91,6 +91,24 @@ class Mofa0404CollectorUnitTests(unittest.TestCase):
         )
         self.assertIsNone(result)
 
+    def test_classify_post_accepts_military_tension_notice_with_telecom_disruption_contingency(self):
+        result = self.collector._classify_post(
+            title="(아랍에미리트) 이란의 주요 인프라 시설 공격 위협 관련 신변안전 및 사전 대비 안내",
+            body_text=(
+                "미국‧이스라엘과 이란 간 군사적 공방이 계속되는 가운데 추가적인 상황 악화 가능성을 배제할 수 없는 만큼 "
+                "현지 체류 우리국민께서는 아래 사항을 참고하여 신변안전에 각별히 유의하여 주시기 바랍니다. "
+                "3.22.(일) 이란 군 당국은 미국이 자국의 발전시설을 공격할 경우, 역내 에너지 인프라(발전시설), "
+                "IT 통신시설, 담수화 플랜트 등을 즉각 보복 타격하겠다는 입장을 표명하였음을 감안, UAE 내 민감시설은 물론, "
+                "주요 기간시설(발전/담수 플랜트, 통신시설, 공항만 등) 인접 지역으로의 이동을 최대한 자제하여 주실 것을 당부드립니다. "
+                "또한, 만일의 비상 사태에 대비하여 식수 및 비상식량을 미리 확보하여 주시고, 통신 장애 발생 시 가족 및 지인 간 "
+                "비상 연락 수단을 사전에 확인해 두시기 바랍니다."
+            ),
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual("context_disruption_sentence", result["match_reason"])
+        self.assertIn("통신", result["matched_keywords"])
+        self.assertIn("장애", result["matched_keywords"])
+
     def test_classify_post_accepts_roaming_title(self):
         result = self.collector._classify_post(
             title="현지 데이터 로밍 장애 안내",

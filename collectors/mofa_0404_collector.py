@@ -78,7 +78,6 @@ class Mofa0404Collector(BaseCollector):
     EXCLUDE_PATTERNS = [
         r"통신\s*보안",
         r"보안\s*강화",
-        r"군사",
         r"반군",
         r"기뢰",
         r"해상\s*폭발물",
