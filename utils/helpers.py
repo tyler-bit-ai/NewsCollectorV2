@@ -6,6 +6,7 @@ from typing import Dict, Tuple
 
 
 ASCII_ALPHA_PATTERN = re.compile(r"[A-Za-z]")
+KOREAN_CHAR_PATTERN = re.compile(r"[가-힣]")
 GLOBAL_TREND_TITLE_FALLBACK = "해외 로밍 동향 기사(한글 번역 준비중)"
 GLOBAL_TREND_SUMMARY_FALLBACK = "한글 요약 준비중입니다. 원문 링크에서 확인해 주세요."
 
@@ -49,17 +50,62 @@ def contains_ascii_alpha(text: str) -> bool:
     return bool(ASCII_ALPHA_PATTERN.search(str(text or "")))
 
 
+def contains_korean_text(text: str) -> bool:
+    """한글 포함 여부를 반환한다."""
+    return bool(KOREAN_CHAR_PATTERN.search(str(text or "")))
+
+
+def inspect_global_trend_translation(title: str, summary: str) -> Dict[str, object]:
+    """
+    Global Roaming Trend 번역 상태를 판별하고 안전한 표시 텍스트를 반환한다.
+    출력용 title/summary는 항상 문자열을 보장하고, 실패 상태는 metadata로 남긴다.
+    """
+    original_title = str(title or "").strip()
+    original_summary = str(summary or "").strip()
+
+    issues = []
+    safe_title = original_title
+    safe_summary = original_summary
+
+    if not safe_title:
+        issues.append("missing_title")
+        safe_title = GLOBAL_TREND_TITLE_FALLBACK
+    elif not contains_korean_text(safe_title):
+        issues.append("non_korean_title")
+        safe_title = GLOBAL_TREND_TITLE_FALLBACK
+
+    if not safe_summary:
+        issues.append("missing_summary")
+        safe_summary = GLOBAL_TREND_SUMMARY_FALLBACK
+    elif not contains_korean_text(safe_summary):
+        issues.append("non_korean_summary")
+        safe_summary = GLOBAL_TREND_SUMMARY_FALLBACK
+
+    if not issues:
+        translation_status = "translated"
+    elif len(issues) == 4 or (
+        "non_korean_title" in issues and "non_korean_summary" in issues
+    ) or (
+        "missing_title" in issues and "missing_summary" in issues
+    ):
+        translation_status = "full_fallback"
+    else:
+        translation_status = "partial_fallback"
+
+    return {
+        "title": safe_title,
+        "summary": safe_summary,
+        "translation_status": translation_status,
+        "translation_notes": issues,
+        "raw_title": original_title,
+        "raw_summary": original_summary,
+    }
+
+
 def ensure_global_trend_korean_text(title: str, summary: str) -> Tuple[str, str]:
     """
     Global Roaming Trend 항목의 제목/요약에서 영문 노출을 차단한다.
     영문이 포함되면 한글 대체 문구로 치환한다.
     """
-    safe_title = str(title or "").strip()
-    safe_summary = str(summary or "").strip()
-
-    if not safe_title or contains_ascii_alpha(safe_title):
-        safe_title = GLOBAL_TREND_TITLE_FALLBACK
-    if not safe_summary or contains_ascii_alpha(safe_summary):
-        safe_summary = GLOBAL_TREND_SUMMARY_FALLBACK
-
-    return safe_title, safe_summary
+    inspection = inspect_global_trend_translation(title=title, summary=summary)
+    return str(inspection["title"]), str(inspection["summary"])

@@ -12,11 +12,13 @@ SKT 로밍팀을 위한 뉴스 수집 및 AI 분석 시스템
 - 자동 뉴스 수집
 - Naver News / Blog / Cafe Search API
 - Google Custom Search API
+  - `Global Roaming Trend`는 Google 응답의 `pagemap.metatags`/snippet prefix에서 게시일 후보를 추출해 최신성 필터에 활용
 - 0404.go.kr 공관안전공지/안전공지 당일 통신/로밍 맥락 기반 수집
 - 스마트 필터링
 - 시간 필터 (`TIME_WINDOW_HOURS`, 기본 24시간)
   - 월요일(KST) 실행 시: 금요일 09:00 ~ 월요일 09:00 고정 구간
 - 키워드/도메인 필터 (`config/categories.yaml`)
+  - `global_trend`는 전용 품질 규칙으로 social/community 도메인, help/support/faq URL, 반려동물/비통신 맥락 오탐을 추가 차단
 - 중복 제거
 - 카테고리 내 중복 제거: 제목 정규화 + URL
 - 카테고리 간 중복 제거: URL 기준(현재는 로그/통계 용도로 수행)
@@ -27,6 +29,7 @@ SKT 로밍팀을 위한 뉴스 수집 및 AI 분석 시스템
 - Global Roaming Trend 한글 전용 표시
   - 해당 섹션은 한글 중심으로 노출하며, 한글이 전혀 없는 영문 문장만 fallback 처리
   - 번역/후처리 결과가 완전 영문이거나 비어 있으면 한글 대체 문구로 안전 치환
+  - 내부 데이터에는 `translation_status`, `translation_notes`를 남겨 번역 실패 원인을 추적 가능
 - 멀티 채널 결과 생성
 - 웹 리포트 HTML 생성 (`output/web/daily_report.html`)
   - 실행 시각별 이력 저장 (`output/web/history/daily_report_YYYYMMDD_HHMMSS.html`)
@@ -189,6 +192,8 @@ python start_web.py
 ```bash
 python -m unittest tests/test_mofa_0404_collector_unit.py -v
 python -m unittest tests/test_global_trend_korean_only.py -v
+python -m unittest tests/test_google_collector.py -v
+python -m unittest tests/test_keyword_filter.py -v
 ```
 
 실사이트 스모크 테스트(선택):
@@ -249,6 +254,25 @@ NewsCollector_v2.0/
 
 - `blacklist_domains`
 - `excluded_keywords`
+- `global_trend.excluded_domains`
+- `global_trend.excluded_url_patterns`
+- `global_trend.excluded_keywords`
+- `global_trend.required_keywords`
+
+### Global Roaming Trend 품질 기준
+
+- Google 검색 결과의 `article:published_time`, `og:published_time`, `parsely-pub-date`, snippet 앞 날짜(`Mar 30, 2026 ...`)를 우선 추출해 `published`에 반영합니다.
+- `published` 추출 실패 시에도 `published_raw`, `freshness_source`, `source_domain`, `query`, `quality_flags`를 결과에 남겨 후속 필터와 디버깅에 사용합니다.
+- `global_trend`는 일반 필터 외에 전용 품질 규칙을 적용합니다.
+  - `facebook.com/groups/...` 같은 social/community 결과 제외
+  - `/support/`, `/help/`, `/faq` 등 정적 요금/안내 페이지 제외
+  - `dog`, `pet`, `neighborhood` 등 로밍 산업과 무관한 맥락 제외
+  - `roaming`, `eSIM`, `connectivity`, `telecom`, `network`, `MVNO`, `satellite` 등 통신/연결성 키워드가 없는 결과 제외
+- 번역 후처리는 title/summary 문자열을 항상 유지하면서 내부적으로 `translation_status`를 기록합니다.
+  - `translated`: 한글 결과 유지
+  - `partial_fallback`: 제목 또는 요약 한쪽만 fallback
+  - `full_fallback`: 제목/요약 모두 fallback
+- 현재 notifier는 기존 호환성을 위해 카드에는 title/summary만 출력하고, 번역 상태 메타는 내부 검증/디버깅용으로 유지합니다.
 
 ## 🌐 웹 대시보드 상세
 
@@ -342,7 +366,7 @@ SKT 내부 사용용
 ---
 
 **버전**: 2.0  
-**최종 업데이트**: 2026-03-19
+**최종 업데이트**: 2026-03-31
 ## 최근 수정 메모
 
 - `README.md`를 현재 코드/출력 기준으로 재검토하고, 최신 실행 예시와 결과 화면 캡처(`docs/images/*.png`)를 반영했습니다.
@@ -350,3 +374,6 @@ SKT 내부 사용용
 - `notifiers/web_generator.py`의 외부 공지 섹션 렌더링에서 정의되지 않은 `category_key`
   참조를 제거해 `name 'category_key' is not defined` 예외를 수정했습니다.
 - 회귀 확인은 `python -m unittest tests/test_global_trend_korean_only.py -v`로 수행할 수 있습니다.
+- `Global Roaming Trend` 수집은 Google 결과 메타/스니펫에서 게시일을 추출하고, `config/categories.yaml`의 전용 품질 규칙으로 social/help/반려동물 오탐을 줄이도록 보강했습니다.
+- 번역 후처리에 `translation_status`, `translation_notes`를 추가해 fallback 발생 원인을 내부적으로 추적할 수 있게 했습니다.
+- 관련 회귀 테스트는 `python -m unittest tests/test_google_collector.py -v`, `python -m unittest tests/test_keyword_filter.py -v`, `python -m unittest tests/test_global_trend_korean_only.py -v`로 확인할 수 있습니다.

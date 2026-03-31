@@ -87,7 +87,8 @@ def collect_articles(settings) -> Dict:
     )
     keyword_filter = KeywordFilter(
         blacklist_domains=filters_config['blacklist_domains'],
-        excluded_keywords=filters_config['excluded_keywords']
+        excluded_keywords=filters_config['excluded_keywords'],
+        global_trend_rules=filters_config.get('global_trend', {})
     )
     deduplicator = Deduplicator()
 
@@ -144,7 +145,7 @@ def collect_articles(settings) -> Dict:
         category_articles = time_filter.filter_articles(category_articles)
 
         # 키워드 필터링
-        category_articles = keyword_filter.filter_articles(category_articles)
+        category_articles = keyword_filter.filter_articles(category_articles, category=cat_key)
 
         # 중복 제거
         category_articles = deduplicator.deduplicate_within_category(category_articles)

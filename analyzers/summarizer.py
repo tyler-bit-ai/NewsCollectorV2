@@ -5,7 +5,7 @@ from typing import Dict, List
 import logging
 
 from .base import BaseAnalyzer
-from utils.helpers import ensure_global_trend_korean_text
+from utils.helpers import inspect_global_trend_translation
 
 logger = logging.getLogger(__name__)
 
@@ -114,13 +114,15 @@ class Summarizer(BaseAnalyzer):
             if not isinstance(item, dict):
                 continue
 
-            title, summary = ensure_global_trend_korean_text(
+            inspection = inspect_global_trend_translation(
                 title=item.get("title", ""),
                 summary=item.get("summary", ""),
             )
             safe_item = dict(item)
-            safe_item["title"] = title
-            safe_item["summary"] = summary
+            safe_item["title"] = inspection["title"]
+            safe_item["summary"] = inspection["summary"]
+            safe_item["translation_status"] = inspection["translation_status"]
+            safe_item["translation_notes"] = inspection["translation_notes"]
             sanitized.append(safe_item)
 
         return sanitized
